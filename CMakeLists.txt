@@ -1,30 +1,28 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(socket)
+project(cppsocket)
 
 include_directories(
     ${PROJECT_SOURCE_DIR}/include
 )
 
-link_libraries(
+add_library(
+    ${PROJECT_NAME}
+    src/socket.cpp
+)
+
+add_subdirectory(
+    zlib
+)
+
+target_link_libraries(
+    ${PROJECT_NAME}
     pthread
+    zlib
 )
 
-add_executable(
-    client
-    src/client.cpp
-    src/socket.cpp
+target_include_directories(
+    ${PROJECT_NAME}
+    PUBLIC
+    ${PROJECT_SOURCE_DIR}/include
 )
-
-add_executable(
-    server
-    src/server.cpp
-    src/socket.cpp
-)
-
-
-SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/build)
-SET(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_C_COMPILER /usr/bin/gcc)
-set(CMAKE_CXX_COMPILER /usr/bin/g++)
-add_compile_options(-O0 -g)
