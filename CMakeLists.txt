@@ -9,6 +9,7 @@ include_directories(
 add_library(
     ${PROJECT_NAME}
     src/socket.cpp
+    src/http.cpp
 )
 
 add_subdirectory(
