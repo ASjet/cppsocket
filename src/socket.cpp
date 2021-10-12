@@ -131,23 +131,29 @@ int Socket::acceptFrom(void)
 int Socket::connectTo(std::string host, port_t port)
 {
     std::list<struct sockaddr_in> addr_list;
-    int errcode;
+    int errcode, cnt;
+    char * p, * add = addr;
     if (0 != (errcode = ns(host, addr_list)))
     {
         fprintf(stderr, "Socket: connectTo: ns(%d): %s\n", errcode, gai_strerror(errcode));
         return errcode;
     }
-    for (auto p = addr_list.begin(); p != addr_list.end(); ++p)
+    for (auto i = addr_list.begin(); i != addr_list.end(); ++i)
     {
-        p->sin_port = htons(port);
-        p->sin_family = domain;
-        if (-1 == connect(sock_fd, (struct sockaddr *)&*p, sizeof(*p)))
+        i->sin_port = htons(port);
+        i->sin_family = domain;
+        p = (char *)&*i;
+        cnt = sizeof(*i);
+        if (-1 == connect(sock_fd, (struct sockaddr *)p, cnt))
         {
             fprintf(stderr, "Socket: connectTo: connect(%d): %s\nRetrying...\n", errno, strerror(errno));
         }
         else
         {
             is_conn_est = true;
+            bzero(addr, ADDRESS_BUFFER_SIZE);
+            while(cnt--)
+                *add++ = *p++;
             break;
         }
     }
@@ -159,13 +165,18 @@ int Socket::connectTo(std::string host, port_t port)
     return 0;
 }
 
-ssize_t Socket::sendData(const void *buf, int size)
+ssize_t Socket::sendData(const char *buf, int size)
 {
     int sd = (conn_fd > 0) ? conn_fd : sock_fd;
-    return send(sd, buf, size, 0);
+    int cnt = send(sd, buf, size, 0);
+    if(cnt < size)
+    {
+        fprintf(stderr, "Socket: sendData: send: Only %d/%d byte(s) data is sent.\n", cnt, size);
+    }
+    return cnt;
 }
 
-ssize_t Socket::sendTo(const void *buf, int size, std::string host, port_t port)
+ssize_t Socket::sendTo(const char *buf, int size, std::string host, port_t port)
 {
     std::list<struct sockaddr_in> addr_list;
     int errcode;
@@ -192,7 +203,7 @@ ssize_t Socket::sendTo(const void *buf, int size, std::string host, port_t port)
     return cnt;
 }
 
-ssize_t Socket::recvData(void *buf, int size)
+ssize_t Socket::recvData(char *buf, int size)
 {
     // char addr[SOCKADDR_BUFFER_SIZE];
     bzero(addr, SOCKADDR_BUFFER_SIZE);

@@ -38,9 +38,9 @@ class Socket{
     int acceptFrom(void);
     sock_info peerAddr(void);
     int connectTo(std::string _HostName, port_t _Port);
-    ssize_t sendData(const void * _Buffer, int _Size);
-    ssize_t sendTo(const void * _Buffer, int _Size, std::string _HostName, port_t _Port);
-    ssize_t recvData(void * _Buffer, int _Size);
+    ssize_t sendData(const char * _Buffer, int _Size);
+    ssize_t sendTo(const char * _Buffer, int _Size, std::string _HostName, port_t _Port);
+    ssize_t recvData(char * _Buffer, int _Size);
     bool isConnecting(void);
     int socketnum();
 

@@ -12,7 +12,7 @@ using std::endl;
 using std::string;
 using std::vector;
 #define BUF_SIZE 2048
-string hostname = "localhost";
+string hostname = "vpshk.itfs127.com";
 int port = 2333;
 const char * stop = "stop";
 ////////////////////////////////////////////////////////////////////////////////
