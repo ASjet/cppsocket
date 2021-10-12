@@ -10,6 +10,7 @@
 #include <netdb.h>
 #include <signal.h>
 #include <pthread.h>
+#include <netinet/tcp.h>
 #include "socket.h"
 
 std::list<Socket> socket_list;
@@ -18,7 +19,6 @@ void closeAllSockets(int sig)
 {
     for (auto s = socket_list.begin(); s != socket_list.end(); ++s)
     {
-        printf("Closing socket %d\n", s->socketnum());
         s->closeSocket();
     }
     exit(sig);
@@ -201,7 +201,16 @@ ssize_t Socket::recvData(void *buf, int size)
     int cnt = (is_conn_est) ? recv(sd, buf, size - 1, 0) : recvfrom(sd, buf, size - 1, 0, (struct sockaddr *)addr, &len);
     if (-1 == cnt)
     {
-        fprintf(stderr, "Socket: recvData: recvfrom(-1): error\n");
+        if (errno == EINTR)
+            return cnt;
+        else
+        {
+            fprintf(stderr, "Socket: recvData: recvfrom(-1): error\n");
+            if (is_conn_est)
+                disconnect();
+            else
+                closeSocket();
+        }
     }
     return cnt;
 }
@@ -220,7 +229,12 @@ sock_info Socket::peerAddr(void)
 
 bool Socket::isConnecting(void)
 {
-    return is_conn_est;
+    struct tcp_info info;
+    int len = sizeof(info);
+    int sd = (conn_fd > 0) ? conn_fd : sock_fd;
+    getsockopt(sd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len);
+    return (info.tcpi_state == TCP_ESTABLISHED);
+    // return is_conn_est;
 }
 
 int Socket::socketnum(void)

@@ -23,13 +23,11 @@ int main(int argc, char ** argv)
     sock_info info;
     Socket s(IPv4, TCP);
     char buf[BUF_SIZE];
-    s.connectTo(hostname, port);
+    s.connectTo(hostname, std::stoi(argv[1]));
     int cnt;
     info = s.peerAddr();
-    while(std::getline(cin, msg))
+    while(s.isConnecting() && std::getline(cin, msg))
     {
-        if(!s.isConnecting())
-            break;
         s.sendData(msg.c_str(), msg.length());
         // s.sendTo(msg.c_str(), msg.length(), hostname, port);
         printf("send %s to %s:%d\n", msg.c_str(), hostname.c_str(), port);
@@ -42,5 +40,6 @@ int main(int argc, char ** argv)
         printf("Receive %d Byte(s) from %s:%d\n%s\n", cnt, info.address.c_str(), info.port, buf);
     }
     s.closeSocket();
+    printf("Connection closed.\n");
     return 0;
 }

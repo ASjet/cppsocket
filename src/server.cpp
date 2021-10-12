@@ -31,11 +31,11 @@ int main(int argc, char ** argv)
     while(s.isConnecting())
     {
         bzero(buf, BUF_SIZE);
-        if(0 <= (cnt = s.recvData(buf, BUF_SIZE)))
-            break;
+        cnt = s.recvData(buf, BUF_SIZE);
         printf("Receved %d Byte(s)\n%s\n", cnt, buf);
         s.sendData(buf, strlen(buf));
     }
     s.closeSocket();
+    printf("Connection closed.\n");
     return 0;
 }
