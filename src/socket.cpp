@@ -35,7 +35,6 @@ void Socket::disconnect(void)
         close(conn_fd);
     }
     conn_fd = -1;
-    is_conn_est = false;
 }
 void Socket::closeSocket()
 {
@@ -77,7 +76,6 @@ Socket::Socket(ipv_t _IPVersion, conn_proto_t _ConnectType)
     // Install signal handler for SIGINT
     static pthread_once_t once = PTHREAD_ONCE_INIT;
     pthread_once(&once, install_sig_handle);
-    is_conn_est = false;
     socket_list.push_back(*this);
 }
 Socket::~Socket()
@@ -119,7 +117,6 @@ int Socket::acceptFrom(void)
         fprintf(stderr, "Socket: acceptFrom: accept(%d): %s\n", errno, strerror(errno));
         return -1;
     }
-    is_conn_est = true;
     if (len == SOCKADDR_BUFFER_SIZE)
     {
         fprintf(stderr, "Socket: acceptFrom: sockaddr is too large to be held by addr(char[%d]).\n", SOCKADDR_BUFFER_SIZE);
@@ -132,7 +129,7 @@ int Socket::connectTo(std::string host, port_t port)
 {
     std::list<struct sockaddr_in> addr_list;
     int errcode, cnt;
-    char * p, * add = addr;
+    byte * p, * add = addr;
     if (0 != (errcode = ns(host, addr_list)))
     {
         fprintf(stderr, "Socket: connectTo: ns(%d): %s\n", errcode, gai_strerror(errcode));
@@ -142,7 +139,7 @@ int Socket::connectTo(std::string host, port_t port)
     {
         i->sin_port = htons(port);
         i->sin_family = domain;
-        p = (char *)&*i;
+        p = (byte *)&*i;
         cnt = sizeof(*i);
         if (-1 == connect(sock_fd, (struct sockaddr *)p, cnt))
         {
@@ -150,22 +147,17 @@ int Socket::connectTo(std::string host, port_t port)
         }
         else
         {
-            is_conn_est = true;
             bzero(addr, ADDRESS_BUFFER_SIZE);
             while(cnt--)
                 *add++ = *p++;
-            break;
+            return 0;
         }
     }
-    if (!is_conn_est)
-    {
-        fprintf(stderr, "Socket: connectTo: cannot establish connection to %s:%d\n", host.c_str(), port);
-        return -1;
-    }
-    return 0;
+    fprintf(stderr, "Socket: connectTo: cannot establish connection to %s:%d\n", host.c_str(), port);
+    return -1;
 }
 
-ssize_t Socket::sendData(const char *buf, int size)
+ssize_t Socket::sendData(const void *buf, int size)
 {
     int sd = (conn_fd > 0) ? conn_fd : sock_fd;
     int cnt = send(sd, buf, size, 0);
@@ -176,7 +168,7 @@ ssize_t Socket::sendData(const char *buf, int size)
     return cnt;
 }
 
-ssize_t Socket::sendTo(const char *buf, int size, std::string host, port_t port)
+ssize_t Socket::sendTo(const void *buf, int size, std::string host, port_t port)
 {
     std::list<struct sockaddr_in> addr_list;
     int errcode;
@@ -200,16 +192,17 @@ ssize_t Socket::sendTo(const char *buf, int size, std::string host, port_t port)
     }
     if (cnt == 0)
         fprintf(stderr, "Socket: sendTo: cannot send data to %s:%d\n", host.c_str(), port);
+    if(cnt != size)
+        fprintf(stderr, "Socket: sendTo: only %d/%d Byte(s) sent.\n", cnt, size);
     return cnt;
 }
 
-ssize_t Socket::recvData(char *buf, int size)
+ssize_t Socket::recvData(void *buf, int size)
 {
-    // char addr[SOCKADDR_BUFFER_SIZE];
     bzero(addr, SOCKADDR_BUFFER_SIZE);
     socklen_t len;
     int sd = (conn_fd > 0) ? conn_fd : sock_fd;
-    int cnt = (is_conn_est) ? recv(sd, buf, size - 1, 0) : recvfrom(sd, buf, size - 1, 0, (struct sockaddr *)addr, &len);
+    int cnt = (protocol == SOCK_STREAM) ? recv(sd, buf, size - 1, 0) : recvfrom(sd, buf, size - 1, 0, (struct sockaddr *)addr, &len);
     if (-1 == cnt)
     {
         if (errno == EINTR)
@@ -217,10 +210,7 @@ ssize_t Socket::recvData(char *buf, int size)
         else
         {
             fprintf(stderr, "Socket: recvData: recvfrom(-1): error\n");
-            if (is_conn_est)
-                disconnect();
-            else
-                closeSocket();
+            disconnect();
         }
     }
     return cnt;
@@ -245,7 +235,6 @@ bool Socket::isConnecting(void)
     int sd = (conn_fd > 0) ? conn_fd : sock_fd;
     getsockopt(sd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len);
     return (info.tcpi_state == TCP_ESTABLISHED);
-    // return is_conn_est;
 }
 
 int Socket::socketnum(void)
