@@ -10,6 +10,8 @@ add_library(
     ${PROJECT_NAME}
     src/Socket.cpp
     src/http.cpp
+    src/socketIOunix.cpp
+    src/socketIOwin.cpp
 )
 
 add_subdirectory(
