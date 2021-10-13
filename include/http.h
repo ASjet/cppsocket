@@ -4,12 +4,22 @@
 #include <string>
 #include <vector>
 #include <map>
-#include "socket.h"
+#include "Socket.h"
 
 #define CHUNK 0x4000;
+#define GZIP_MAX_COMPRESS_RATE 100
+#define HTTP_BOUNDARY "\r\n\r\n"
+#define CRLF "\r\n"
+#define CONTENT_ENCODING "Content-Encoding"
 
 int decompress(byte * in, size_t in_size, byte * out, size_t out_size);
 
+enum encoding_set
+{
+    GZIP,
+    INFLATE,
+    OTHERS
+};
 struct chunk_t{
     byte * raw_data;
     byte * data;
@@ -21,6 +31,8 @@ class http_msg {
     http_msg() = default;
     http_msg(byte * _HTTPMessageBuffer, size_t _BufferSize);
     ~http_msg();
+    void clear(void);
+    int parse(byte * _HTTPMessageBuffer, size_t _BufferSize);
     size_t headerSize(void);
     size_t bodySize(void);
     size_t chunkSize(void);
@@ -29,6 +41,7 @@ class http_msg {
     std::string ver;
     int stat_code;
     size_t msg_len;
+    encoding_set encoding;
 
     std::map<std::string, std::string> headers;
     byte * header;
