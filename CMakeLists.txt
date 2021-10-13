@@ -8,7 +8,7 @@ include_directories(
 
 add_library(
     ${PROJECT_NAME}
-    src/socket.cpp
+    src/Socket.cpp
     src/http.cpp
 )
 

@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <cstring>
 #include <unistd.h>
-#include "socket.h"
+#include "Socket.h"
 ////////////////////////////////////////////////////////////////////////////////
 using std::cin;
 using std::cout;

@@ -11,7 +11,7 @@
 #include <signal.h>
 #include <pthread.h>
 #include <netinet/tcp.h>
-#include "socket.h"
+#include "Socket.h"
 
 std::list<Socket> socket_list;
 ////////////////////////////////////////////////////////////////////////////////
