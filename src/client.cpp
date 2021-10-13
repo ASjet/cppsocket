@@ -34,7 +34,7 @@ int main(int argc, char ** argv)
         if(msg == string("stop") || msg == string("disconnect"))
             break;
         msg.clear();
-        bzero(buf, BUF_SIZE);
+        memset(buf, 0, BUF_SIZE);
         if(-1 == (cnt = s.recvData(buf, BUF_SIZE)))
             break;
         printf("Receive %d Byte(s) from %s:%d\n%s\n", cnt, info.address.c_str(), info.port, buf);

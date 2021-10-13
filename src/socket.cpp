@@ -51,7 +51,8 @@ int ns(std::string host, std::list<struct sockaddr_in> &lst)
     struct addrinfo *listp, *p, hints;
     char addr_buf[ADDRESS_BUFFER_SIZE];
     int errcode;
-    bzero(&hints, sizeof(hints));
+    memset(&hints, 0, sizeof(hints));
+    memset(addr_buf, 0, ADDRESS_BUFFER_SIZE);
     if (0 != (errcode = getaddrinfo(host.c_str(), nullptr, &hints, &listp)))
     {
         return errcode;
@@ -71,6 +72,7 @@ Socket::Socket(ipv_t _IPVersion, conn_proto_t _ConnectType)
     if (0 > (sock_fd = socket(domain, type, proto)))
     {
         fprintf(stderr, "Socket: Socket: socket(%d): %s\n", errno, strerror(errno));
+        closeSocket();
         exit(-1);
     }
     // Install signal handler for SIGINT
@@ -86,7 +88,7 @@ Socket::~Socket()
 int Socket::bindTo(port_t port)
 {
     struct sockaddr_in addr;
-    bzero(&addr, sizeof(addr));
+    memset(&addr, 0, sizeof(addr));
     addr.sin_family = domain;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(port);
@@ -110,7 +112,7 @@ int Socket::listenOn(int cnt)
 
 int Socket::acceptFrom(void)
 {
-    bzero(addr, SOCKADDR_BUFFER_SIZE);
+    memset(addr, 0, SOCKADDR_BUFFER_SIZE);
     socklen_t len;
     if (-1 == (conn_fd = accept(sock_fd, (struct sockaddr *)addr, &len)))
     {
@@ -147,7 +149,7 @@ int Socket::connectTo(std::string host, port_t port)
         }
         else
         {
-            bzero(addr, ADDRESS_BUFFER_SIZE);
+            memset(addr, 0, ADDRESS_BUFFER_SIZE);
             while(cnt--)
                 *add++ = *p++;
             return 0;
@@ -199,9 +201,10 @@ ssize_t Socket::sendTo(const void *buf, int size, std::string host, port_t port)
 
 ssize_t Socket::recvData(void *buf, int size)
 {
-    bzero(addr, SOCKADDR_BUFFER_SIZE);
     socklen_t len;
     int sd = (conn_fd > 0) ? conn_fd : sock_fd;
+    memset(buf, 0, size);
+    memset(addr, 0, SOCKADDR_BUFFER_SIZE);
     int cnt = (protocol == SOCK_STREAM) ? recv(sd, buf, size - 1, 0) : recvfrom(sd, buf, size - 1, 0, (struct sockaddr *)addr, &len);
     if (-1 == cnt)
     {
@@ -219,6 +222,7 @@ ssize_t Socket::recvData(void *buf, int size)
 sock_info Socket::peerAddr(void)
 {
     char addr_buf[ADDRESS_BUFFER_SIZE];
+    memset(addr_buf, 0, ADDRESS_BUFFER_SIZE);
     if (NULL == inet_ntop(domain, &((struct sockaddr_in *)addr)->sin_addr, addr_buf, ADDRESS_BUFFER_SIZE))
     {
         fprintf(stderr, "Socket: info: inet_ntop(%d): %s\n", errno, strerror(errno));
@@ -231,6 +235,7 @@ sock_info Socket::peerAddr(void)
 bool Socket::isConnecting(void)
 {
     struct tcp_info info;
+    memset(&info, 0, sizeof(info));
     int len = sizeof(info);
     int sd = (conn_fd > 0) ? conn_fd : sock_fd;
     getsockopt(sd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len);

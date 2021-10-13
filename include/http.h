@@ -16,9 +16,9 @@ int decompress(byte * in, size_t in_size, byte * out, size_t out_size);
 
 enum encoding_set
 {
+    OTHERS,
     GZIP,
-    INFLATE,
-    OTHERS
+    INFLATE
 };
 struct chunk_t{
     byte * raw_data;
@@ -33,10 +33,14 @@ class http_msg {
     ~http_msg();
     void clear(void);
     int parse(byte * _HTTPMessageBuffer, size_t _BufferSize);
+    std::string httpType(void);
+    std::string httpVersion(void);
+    int statusCode(void);
     size_t headerSize(void);
     size_t bodySize(void);
-    size_t chunkSize(void);
+    std::vector<chunk_t>& chunk(void);
 
+    private:
     std::string type;
     std::string ver;
     int stat_code;

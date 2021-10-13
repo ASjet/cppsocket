@@ -30,7 +30,7 @@ int main(int argc, char ** argv)
     printf("Connection with %s:%d established\n", info.address.c_str(), info.port);
     while(s.isConnecting())
     {
-        bzero(buf, BUF_SIZE);
+        memset(buf, 0, BUF_SIZE);
         cnt = s.recvData(buf, BUF_SIZE);
         printf("Receved %d Byte(s)\n%s\n", cnt, buf);
         s.sendData(buf, strlen(buf));
