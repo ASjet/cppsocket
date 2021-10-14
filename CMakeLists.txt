@@ -24,6 +24,26 @@ target_link_libraries(
     zlib
 )
 
+add_executable(
+    echos
+    example/server.cpp
+)
+
+add_executable(
+    echoc
+    example/client.cpp
+)
+
+target_link_libraries(
+    echos
+    ${PROJECT_NAME}
+)
+
+target_link_libraries(
+    echoc
+    ${PROJECT_NAME}
+)
+
 target_include_directories(
     ${PROJECT_NAME}
     PUBLIC
