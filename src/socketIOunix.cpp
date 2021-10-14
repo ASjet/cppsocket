@@ -1,3 +1,5 @@
+#if defined(__linux__) || defined(__unix__)
+
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
@@ -57,11 +59,11 @@ int getPeerAddr(byte *addr, sock_info *peer, ipv_t ipv)
     {
         fprintf(stderr, "socketIOunix: getPeerAddr: inet_ntop(%d): %s\n", errno, strerror(errno));
         peer->port = NULL_PORT;
-        peer->address = std::string(NULL_ADDRESS);
+        peer->addr = std::string(NULL_ADDRESS);
         return -1;
     }
     peer->port = ntohs(((struct sockaddr_in *)addr)->sin_port);
-    peer->address = std::string(addr_buf);
+    peer->addr = std::string(addr_buf);
     return 0;
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,8 +125,8 @@ sockfd_t uni_accept(sockfd_t sock_fd, sock_info *peer, ipv_t ipv)
 {
     int conn_fd;
     byte addr[SOCKADDR_BUFFER_SIZE];
-    memset(addr, 0, sizeof(addr));
-    socklen_t len;
+    memset(addr, 0, SOCKADDR_BUFFER_SIZE);
+    socklen_t len = SOCKADDR_BUFFER_SIZE;
 
     if (-1 == (conn_fd = accept(sock_fd, (struct sockaddr *)addr, &len)))
     {
@@ -149,7 +151,7 @@ int uni_connect(sockfd_t sock_fd, std::string host, port_t port, sock_info *peer
     byte *addr;
     std::vector<struct sockaddr_in> addr_list;
     if (0 != (errcode = ns(host, addr_list)))
-        return errcode;
+        return -1;
 
     for (auto i = addr_list.begin(); i != addr_list.end(); ++i)
     {
@@ -168,7 +170,13 @@ int uni_connect(sockfd_t sock_fd, std::string host, port_t port, sock_info *peer
 
 int uni_send(sockfd_t sock_fd, const void *buf, int length)
 {
-    return send(sock_fd, buf, length, 0);
+    int cnt = send(sock_fd, buf, length, 0);
+    if(-1 == cnt)
+    {
+        fprintf(stderr, "socketIOunix: uni_send: send(%d): %s\n", errno, strerror(errno));
+        return 0;
+    }
+    return cnt;
 }
 
 int uni_sendto(sockfd_t sock_fd, const void *buf, int length, std::string host, port_t port)
@@ -182,16 +190,16 @@ int uni_sendto(sockfd_t sock_fd, const void *buf, int length, std::string host, 
     for (auto p = addr_list.begin(); p != addr_list.end(); ++p)
     {
         p->sin_port = htons(port);
-        if (0 == (cnt = sendto(sock_fd, buf, length, 0, (struct sockaddr *)&*p, sizeof(*p))))
+        if (-1 == (cnt = sendto(sock_fd, buf, length, 0, (struct sockaddr *)&*p, sizeof(*p))))
             fprintf(stderr, "socketIOunix: uni_sendto: sendto(%d): %s\nRetrying...\n", errno, strerror(errno));
         else
             break;
     }
 
-    if (cnt == 0)
-        fprintf(stderr, "socketIOunix: uni_sendto: unable to send data to %s:%d\n", host.c_str(), port);
-
-    return cnt;
+    if (-1 == cnt)
+        return 0;
+    else
+        return cnt;
 }
 
 int uni_recv(sockfd_t sock_fd, void *buf, int size, conn_proto_t type, sock_info *peer, ipv_t ipv)
@@ -201,7 +209,7 @@ int uni_recv(sockfd_t sock_fd, void *buf, int size, conn_proto_t type, sock_info
     byte addr[SOCKADDR_BUFFER_SIZE];
     memset(buf, 0, size);
     memset(addr, 0, SOCKADDR_BUFFER_SIZE);
-    int cnt = (sock_type == SOCK_STREAM) ? recv(sock_fd, buf, size - 1, 0) : recvfrom(sock_fd, buf, size - 1, 0, (struct sockaddr *)addr, &len);
+    int cnt = (sock_type == SOCK_STREAM) ? recv(sock_fd, buf, size, 0) : recvfrom(sock_fd, buf, size, 0, (struct sockaddr *)addr, &len);
     if (-1 == cnt)
     {
         if (errno == EINTR)
@@ -224,3 +232,5 @@ bool uni_isConnecting(sockfd_t sock_fd)
     getsockopt(sock_fd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len);
     return (info.tcpi_state == TCP_ESTABLISHED);
 }
+
+#endif
