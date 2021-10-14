@@ -43,16 +43,16 @@ class http_msg {
     private:
     std::string type;
     std::string ver;
-    int stat_code;
-    size_t msg_len;
-    encoding_set encoding;
+    int stat_code = 0;
+    size_t msg_len = 0;
+    encoding_set encoding = OTHERS;
 
     std::map<std::string, std::string> headers;
-    byte * header;
-    size_t header_len;
+    byte * header = nullptr;
+    size_t header_len = 0;
 
-    byte * body;
-    size_t body_len;
+    byte * body = nullptr;
+    size_t body_len = 0;
 
     std::vector<chunk_t> chunks;
 };
