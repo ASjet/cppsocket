@@ -23,7 +23,7 @@
 #error "Unknown Apple platform"
 #endif
 
-#elif __linux__ || __unix__
+#elif defined(__linux__) || defined(__unix__)
 
 #define SOCKET_BUFFER_SIZE 2048
 #define ADDRESS_BUFFER_SIZE 16

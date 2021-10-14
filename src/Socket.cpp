@@ -23,15 +23,14 @@ Socket::Socket(ipv_t _IPVersion, conn_proto_t _ConnectType)
     type = _ConnectType;
     ipv = _IPVersion;
     sock_fd = uni_socket(ipv, type);
-    if (!is_open(sock_fd))
+    if (is_open(sock_fd))
     {
-        closeSocket();
-        exit(-1);
+        // Install signal handler for SIGINT
+        installSigHandler();
+        socket_list.push_back(*this);
     }
-
-    // Install signal handler for SIGINT
-    installSigHandler();
-    socket_list.push_back(*this);
+    else
+        closeSocket();
 }
 Socket::~Socket()
 {
@@ -68,7 +67,7 @@ ssize_t Socket::sendData(const void *buf, int size)
     int cnt = uni_send(sd, buf, size);
 
     if (cnt < size)
-        fprintf(stderr, "Socket: sendData: send: Only %d/%d byte(s) data is sent.\n", cnt, size);
+        fprintf(stderr, "Socket: sendData: Only %d/%d byte(s) data is sent.\n", cnt, size);
 
     return cnt;
 }
@@ -77,7 +76,7 @@ ssize_t Socket::sendTo(const void *buf, int size, std::string host, port_t port)
 {
     ssize_t cnt = uni_sendto(sock_fd, buf, size, host, port);
 
-    if (cnt != size)
+    if (cnt < size)
         fprintf(stderr, "Socket: sendTo: only sent %d/%d Byte(s)\n", cnt, size);
 
     return cnt;
@@ -98,4 +97,9 @@ bool Socket::isConnecting(void)
 {
     int sd = is_open(conn_fd) ? conn_fd : sock_fd;
     return uni_isConnecting(sd);
+}
+
+bool Socket::avaliable(void)
+{
+    return (FD_NULL != sock_fd);
 }
