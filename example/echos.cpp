@@ -8,14 +8,16 @@ char buf[BUF_SIZE];
 ////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char ** argv)
 {
+    size_t cnt;
+    port_t port;
+    addr_t info;
+
     if(argc != 2)
     {
-        printf("Usage: echos <bind_port>");
+        printf("Usage: %s <bind_port>", argv[0]);
         return 0;
     }
-    int cnt;
-    sock_info info;
-    port_t port = std::stoi(argv[1]);
+    port = std::stoi(argv[1]);
 
     Socket s(IPv4, TCP);
     if(!s.avaliable())
@@ -26,6 +28,7 @@ int main(int argc, char ** argv)
 
     if(-1 == s.listenOn(1))
         return -1;
+
     printf("Listening on %hu\n", port);
 
     while(true)
@@ -38,8 +41,9 @@ int main(int argc, char ** argv)
 
         while(s.isConnecting())
         {
-            cnt = s.recvData(buf, BUF_SIZE);
-            printf("Receved %d Byte(s)\n%s\n", cnt, buf);
+            if(0 == (cnt = s.recvData(buf, BUF_SIZE)))
+                break;
+            printf("Receved %zd Byte(s)\n%s\n", cnt, buf);
             s.sendData(buf, strlen(buf));
         }
         printf("Connection closed.\n");
