@@ -6,32 +6,42 @@ include_directories(
     ${PROJECT_SOURCE_DIR}/include
 )
 
-add_library(
-    ${PROJECT_NAME}
-    src/Socket.cpp
-    src/http.cpp
-    src/socketIOunix.cpp
-    src/socketIOwin.cpp
-)
 
 add_subdirectory(
     zlib
 )
 
-target_link_libraries(
-    ${PROJECT_NAME}
-    pthread
-    zlib
-)
+
+if(WIN32)
+    add_library(
+        ${PROJECT_NAME}
+        src/Socket.cpp
+        src/http.cpp
+        src/socketIOwin.cpp
+    )
+    target_link_libraries( ${PROJECT_NAME} ws2_32 zlib)
+elseif(UNIX)
+    add_library(
+        ${PROJECT_NAME}
+        src/Socket.cpp
+        src/http.cpp
+        src/socketIOunix.cpp
+    )
+    target_link_libraries( ${PROJECT_NAME} zlib)
+elseif(APPLE)
+    message(STATUS "Unsupported platform: Darwin.")
+elseif(ANDROID)
+    message(STATUS "Unsupported platform: Andriod.")
+endif(WIN32)
 
 add_executable(
     echos
-    example/server.cpp
+    example/echos.cpp
 )
 
 add_executable(
     echoc
-    example/client.cpp
+    example/echoc.cpp
 )
 
 target_link_libraries(
