@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <cstdio>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,7 +25,7 @@ enum conn_proto_t
     TCP,
     UDP
 };
-struct sock_info
+struct addr_t
 {
     std::string addr;
     port_t port;
@@ -63,9 +64,9 @@ public:
     int acceptFrom(void);
 
     /*
-     @return information of connected peer in sock_info
+     @return information of connected peer in addr_t
      */
-    sock_info &peerAddr(void);
+    addr_t &peerAddr(void);
 
     /*
      @param _HostName target hostname in domain name or IP address
@@ -76,26 +77,35 @@ public:
 
     /*
      @param _Buffer pointer of buffer containing data to send
-     @param _Size length of data in bytes
+     @param _Length length of data in bytes
      @return number of bytes successfully sent
      */
-    ssize_t sendData(const void *_Buffer, int _Size);
+    ssize_t sendData(const void *_Buffer, ssize_t _Length);
 
     /*
      @param _Buffer pointer of buffer containing data to send
-     @param _Size length of data in bytes
+     @param _Length length of data in bytes
      @param _HostName target hostname in domain name or IP address
      @param _Port port on target host
      @return number of bytes successfully sent
      */
-    ssize_t sendTo(const void *_Buffer, int _Size, std::string _HostName, port_t _Port);
+    ssize_t sendTo(const void *_Buffer, ssize_t _Length, std::string _HostName, port_t _Port);
 
     /*
      @param _Buffer pointer of buffer to save received data
      @param _Size size of buffer
      @return number of bytes actually received
      */
-    ssize_t recvData(void *_Buffer, int _Size);
+    ssize_t recvData(void *_Buffer, ssize_t _Size);
+
+    /*
+     @param _Buffer pointer of buffer to save received data
+     @param _Size size of buffer
+     @param _HostName target hostname in domain name or IP address
+     @param _Port port on target host
+     @return number of bytes actually received
+     */
+    ssize_t recvFrom(void * _Buffer, ssize_t _Size, std::string _HostName, port_t _Port);
 
     /*
      @return true if connection is available else false
@@ -113,7 +123,7 @@ private:
     std::string ip;
     ipv_t ipv;
     conn_proto_t type;
-    sock_info peer_info;
+    addr_t peer_info;
     sockfd_t sock_fd = FD_NULL;
     sockfd_t conn_fd = FD_NULL;
 };

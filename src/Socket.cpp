@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <vector>
+#include <cstddef>
 #include "Socket.h"
 #include "uni_socketIO.h"
 std::vector<Socket> socket_list;
@@ -26,7 +27,7 @@ Socket::Socket(ipv_t _IPVersion, conn_proto_t _ConnectType)
     if (is_open(sock_fd))
     {
         // Install signal handler for SIGINT
-        installSigHandler();
+        installSigIntHandler();
         socket_list.push_back(*this);
     }
     else
@@ -39,7 +40,7 @@ Socket::~Socket()
 
 int Socket::bindTo(port_t port)
 {
-    return uni_bind(sock_fd, port, ipv);
+    return uni_bind(sock_fd, port, ipv, type);
 }
 
 int Socket::listenOn(int cnt)
@@ -58,44 +59,55 @@ int Socket::acceptFrom(void)
 
 int Socket::connectTo(std::string host, port_t port)
 {
-    return uni_connect(sock_fd, host, port, &peer_info, ipv);
+    return uni_connect(sock_fd, host, port, &peer_info, ipv, type);
 }
 
-ssize_t Socket::sendData(const void *buf, int size)
+ssize_t Socket::sendData(const void *buf, ssize_t size)
 {
-    int sd = is_open(conn_fd) ? conn_fd : sock_fd;
-    int cnt = uni_send(sd, buf, size);
+    sockfd_t sd = is_open(conn_fd) ? conn_fd : sock_fd;
+    ssize_t cnt = uni_send(sd, buf, size);
 
     if (cnt < size)
-        fprintf(stderr, "Socket: sendData: Only %d/%d byte(s) data is sent.\n", cnt, size);
+        fprintf(stderr,
+                "Socket: sendData: Only %d/%d byte(s) data is sent.\n",
+                cnt,
+                size);
 
     return cnt;
 }
 
-ssize_t Socket::sendTo(const void *buf, int size, std::string host, port_t port)
+ssize_t Socket::sendTo(const void *buf, ssize_t size, std::string host, port_t port)
 {
-    ssize_t cnt = uni_sendto(sock_fd, buf, size, host, port);
+    ssize_t cnt = uni_sendto(sock_fd, buf, size, host, port, &peer_info, ipv, type);
 
     if (cnt < size)
-        fprintf(stderr, "Socket: sendTo: only sent %d/%d Byte(s)\n", cnt, size);
+        fprintf(stderr,
+                "Socket: sendTo: only sent %d/%d Byte(s)\n",
+                cnt,
+                size);
 
     return cnt;
 }
 
-ssize_t Socket::recvData(void *buf, int size)
+ssize_t Socket::recvData(void *buf, ssize_t size)
 {
-    int sd = is_open(conn_fd) ? conn_fd : sock_fd;
-    return uni_recv(sd, buf, size, type, &peer_info, ipv);
+    sockfd_t sd = is_open(conn_fd) ? conn_fd : sock_fd;
+    return uni_recv(sd, buf, size);
 }
 
-sock_info &Socket::peerAddr(void)
+ssize_t Socket::recvFrom(void *buf, ssize_t size, std::string host, port_t port)
+{
+    return uni_recvfrom(sock_fd, buf, size, host, port, &peer_info, ipv, type);
+}
+
+addr_t &Socket::peerAddr(void)
 {
     return peer_info;
 }
 
 bool Socket::isConnecting(void)
 {
-    int sd = is_open(conn_fd) ? conn_fd : sock_fd;
+    sockfd_t sd = is_open(conn_fd) ? conn_fd : sock_fd;
     return uni_isConnecting(sd);
 }
 
