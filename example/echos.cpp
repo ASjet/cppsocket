@@ -10,7 +10,8 @@ int main(int argc, char ** argv)
 {
     size_t cnt;
     port_t port;
-    addr_t info;
+    addr_t peer;
+    sockd_t connd;
 
     if(argc != 2)
     {
@@ -33,21 +34,22 @@ int main(int argc, char ** argv)
 
     while(true)
     {
-        if(-1 == s.acceptFrom())
+        if(SOCKD_ERR == (connd = s.acceptFrom()))
             break;
 
-        info = s.peerAddr();
-        printf("Connection with %s:%hu established\n", info.addr.c_str(), info.port);
+        peer = s.addr(connd);
+        printf("Connection with %s:%hu established\n", peer.addr.c_str(), peer.port);
 
-        while(s.isConnecting())
+        while(s.isConnecting(connd))
         {
-            if(0 == (cnt = s.recvData(buf, BUF_SIZE)))
+            if(0 == (cnt = s.recvData(buf, BUF_SIZE, connd)))
                 break;
             printf("Receved %zd Byte(s)\n%s\n", cnt, buf);
-            s.sendData(buf, strlen(buf));
+            s.sendData(buf, cnt, connd);
         }
         printf("Connection closed.\n");
     }
+    s.closeSocket();
     printf("Echo server shutdown.\n");
     return 0;
 }

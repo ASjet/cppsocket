@@ -53,7 +53,7 @@ int ns(const char *host,
     return 0;
 }
 
-int getPeerAddr(struct sockaddr_in *addr, addr_t *peer, ipv_t ipv)
+int getPeerAddr(struct sockaddr_in *addr, addr_t &peer, ipv_t ipv)
 {
     char addr_buf[ADDRESS_BUFFER_SIZE];
     memset(addr_buf, 0, ADDRESS_BUFFER_SIZE);
@@ -63,12 +63,12 @@ int getPeerAddr(struct sockaddr_in *addr, addr_t *peer, ipv_t ipv)
                 "socketIOunix: getPeerAddr: inet_ntop(%d): %s",
                 errno,
                 strerror(errno));
-        peer->port = NULL_PORT;
-        peer->addr = std::string(NULL_ADDRESS);
+        peer.port = NULL_PORT;
+        peer.addr = std::string(NULL_ADDRESS);
         return -1;
     }
-    peer->addr = std::string(addr_buf);
-    peer->port = ntohs(addr->sin_port);
+    peer.addr = std::string(addr_buf);
+    peer.port = ntohs(addr->sin_port);
     return 0;
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,7 +148,7 @@ int uni_listen(sockfd_t sock_fd, int cnt)
     return 0;
 }
 
-sockfd_t uni_accept(sockfd_t sock_fd, addr_t *peer, ipv_t ipv)
+sockfd_t uni_accept(sockfd_t sock_fd, addr_t &peer, ipv_t ipv)
 {
     sockfd_t conn_fd;
     byte addr[SOCKADDR_BUFFER_SIZE];
@@ -179,7 +179,7 @@ sockfd_t uni_accept(sockfd_t sock_fd, addr_t *peer, ipv_t ipv)
 int uni_connect(sockfd_t sock_fd,
                 std::string host,
                 port_t port,
-                addr_t *peer,
+                addr_t &peer,
                 ipv_t ipv,
                 conn_proto_t type)
 {
@@ -197,8 +197,8 @@ int uni_connect(sockfd_t sock_fd,
                 freeaddrinfo(result);
                 return 0;
             }
-            freeaddrinfo(result);
         }
+        freeaddrinfo(result);
         fprintf(stderr,
                 "socketIOunix: uni_connect: connect: unable to connect to %s:%hu\n",
                 host.c_str(),
@@ -206,12 +206,12 @@ int uni_connect(sockfd_t sock_fd,
     }
     else
         fprintf(stderr, " in socketIOunix: uni_connect\n");
-    peer->addr = NULL_ADDRESS;
-    peer->port = NULL_PORT;
+    peer.addr = NULL_ADDRESS;
+    peer.port = NULL_PORT;
     return -1;
 }
 
-ssize_t uni_send(sockfd_t sock_fd, const void *buf, ssize_t length)
+size_t uni_send(sockfd_t sock_fd, const void *buf, size_t length)
 {
     ssize_t cnt = send(sock_fd, buf, length, 0);
     if (-1 == cnt)
@@ -225,12 +225,12 @@ ssize_t uni_send(sockfd_t sock_fd, const void *buf, ssize_t length)
     return cnt;
 }
 
-ssize_t uni_sendto(sockfd_t sock_fd,
+size_t uni_sendto(sockfd_t sock_fd,
                    const void *buf,
-                   ssize_t length,
+                   size_t length,
                    std::string host,
                    port_t port,
-                   addr_t *peer,
+                   addr_t &peer,
                    ipv_t ipv,
                    conn_proto_t type)
 {
@@ -259,12 +259,12 @@ ssize_t uni_sendto(sockfd_t sock_fd,
     }
     else
         fprintf(stderr, " in socketIOunix: uni_sendto\n");
-    peer->addr = NULL_ADDRESS;
-    peer->port = NULL_PORT;
+    peer.addr = NULL_ADDRESS;
+    peer.port = NULL_PORT;
     return 0;
 }
 
-ssize_t uni_recv(sockfd_t sock_fd, void *buf, ssize_t size)
+size_t uni_recv(sockfd_t sock_fd, void *buf, size_t size)
 {
     ssize_t cnt;
     if (-1 == (cnt = recv(sock_fd, (char *)buf, size, 0)))
@@ -277,12 +277,12 @@ ssize_t uni_recv(sockfd_t sock_fd, void *buf, ssize_t size)
     return cnt;
 }
 
-ssize_t uni_recvfrom(sockfd_t sock_fd,
+size_t uni_recvfrom(sockfd_t sock_fd,
                      void *buf,
-                     ssize_t size,
+                     size_t size,
                      std::string host,
                      port_t port,
-                     addr_t *peer,
+                     addr_t &peer,
                      ipv_t ipv,
                      conn_proto_t type)
 {
@@ -290,7 +290,6 @@ ssize_t uni_recvfrom(sockfd_t sock_fd,
     struct addrinfo *result = nullptr, *p = nullptr;
     if (0 == ns(host.c_str(), std::to_string(port).c_str(), &result, ipv, type))
     {
-        memset(buf, 0, size);
         for (p = result; nullptr != p; p = p->ai_next)
         {
             if (-1 == (cnt = recvfrom(sock_fd, buf, size, 0, p->ai_addr, &p->ai_addrlen)))
@@ -312,8 +311,8 @@ ssize_t uni_recvfrom(sockfd_t sock_fd,
     }
     else
         fprintf(stderr, " in socketIOunix: uni_recvfrom\n");
-    peer->addr = NULL_ADDRESS;
-    peer->port = NULL_PORT;
+    peer.addr = NULL_ADDRESS;
+    peer.port = NULL_PORT;
     return 0;
 }
 

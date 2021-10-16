@@ -3,18 +3,22 @@
 
 #include <string>
 #include <vector>
+#include <map>
 #include <cstdio>
-
 ////////////////////////////////////////////////////////////////////////////////
 
 #define NULL_ADDRESS "0.0.0.0"
 #define NULL_PORT 0
+#define MAIN_SOCKD 0
+#define SOCKD_ERR -1
 
 typedef uint16_t port_t;
 typedef unsigned char byte;
+typedef int sockd_t;
 
 class Socket;
 extern std::vector<Socket> socket_list;
+
 enum ipv_t
 {
     IPv4,
@@ -27,11 +31,17 @@ enum conn_proto_t
 };
 struct addr_t
 {
-    std::string addr;
-    port_t port;
+    std::string addr = NULL_ADDRESS;
+    port_t port = NULL_PORT;
 };
 
 #include "uni_socketIO.h"
+
+struct conn_t
+{
+    sockfd_t fd = FD_NULL;
+    addr_t addr;
+};
 ////////////////////////////////////////////////////////////////////////////////
 class Socket
 {
@@ -40,47 +50,48 @@ public:
     Socket(ipv_t _IPVersion, conn_proto_t _ConnectType);
     ~Socket();
 
-    // disconnect established connection
-    void disconnect(void);
+    /*
+     * disconnect specified connection
+     @param _SockDesc descriptor of connection socket
+     */
+    void disconnect(sockd_t _SockDesc);
 
-    // close socket
+    /*
+     * disconnect all connections and close sockets
+     */
     void closeSocket(void);
 
     /*
      @param _Port specify bind port
-     @return 0 if bind successfully otherwise -1
+     @return 0 if bind successfully; -1 in error
      */
     int bindTo(port_t _Port);
 
     /*
      @param _LinkCount max number of concurrent tcp connection
-     @return 0 if listen successfully otherwise -1
+     @return 0 if listen successfully; -1 in error
      */
     int listenOn(int _LinkCount);
 
     /*
-     @return socket_fd of new established connection; -1 in error
+     @return descriptor of accepted connection socket; SOCKD_ERR in error
      */
-    int acceptFrom(void);
-
-    /*
-     @return information of connected peer in addr_t
-     */
-    addr_t &peerAddr(void);
+    sockd_t acceptFrom(void);
 
     /*
      @param _HostName target hostname in domain name or IP address
      @param _Port port on target host
-     @return 0 if connection established otherwise -1
+     @return 0 if successful connected to host; -1 in error
      */
     int connectTo(std::string _HostName, port_t _Port);
 
     /*
      @param _Buffer pointer of buffer containing data to send
      @param _Length length of data in bytes
+     @param _SockDesc (Optional)descriptor of socket; default MAIN_SOCKD
      @return number of bytes successfully sent
      */
-    ssize_t sendData(const void *_Buffer, ssize_t _Length);
+    size_t sendData(const void *_Buffer, size_t _Length, sockd_t _SockDesc = MAIN_SOCKD);
 
     /*
      @param _Buffer pointer of buffer containing data to send
@@ -89,43 +100,64 @@ public:
      @param _Port port on target host
      @return number of bytes successfully sent
      */
-    ssize_t sendTo(const void *_Buffer, ssize_t _Length, std::string _HostName, port_t _Port);
+    size_t sendTo(const void *_Buffer, size_t _Length, std::string _HostName, port_t _Port);
 
     /*
+     * this function will initialize each byte of the buffer with 0x0
      @param _Buffer pointer of buffer to save received data
      @param _Size size of buffer
+     @param _SockDesc (Optional)descriptor of socket; default MAIN_SOCKD
      @return number of bytes actually received
      */
-    ssize_t recvData(void *_Buffer, ssize_t _Size);
+    size_t recvData(void *_Buffer, size_t _Size, sockd_t _SockDesc = MAIN_SOCKD);
 
     /*
+     * this function will initialize each byte of the buffer with 0x0
      @param _Buffer pointer of buffer to save received data
      @param _Size size of buffer
      @param _HostName target hostname in domain name or IP address
      @param _Port port on target host
      @return number of bytes actually received
      */
-    ssize_t recvFrom(void * _Buffer, ssize_t _Size, std::string _HostName, port_t _Port);
+    size_t recvFrom(void * _Buffer, size_t _Size, std::string _HostName, port_t _Port);
 
     /*
-     @return true if connection is available else false
+     @param (Optional)_SockDesc descriptor of connection socket; default MAIN_SOCKD
+     @return address of specfied socket in addr_t
      */
-    bool isConnecting(void);
+    addr_t &addr(sockd_t _SockDesc = MAIN_SOCKD);
 
     /*
+     @param _SockDesc (Optional)descriptor of socket; default MAIN_SOCKD
      @return true if socket is available else false
      */
-    bool avaliable(void);
+    bool isConnecting(sockd_t _SockDesc = MAIN_SOCKD);
+
+    /*
+     @param _SockDesc descriptor of socket
+     @return true if socket is available else false
+     */
+    bool avaliable(sockd_t _SockDesc = MAIN_SOCKD);
+
+    /*
+     @param _SockDesc descriptor of socket
+     @return number of connections
+     */
+    std::size_t connCnt(void);
+
+
+
 
 private:
-    std::string hostname;
-    port_t port;
-    std::string ip;
-    ipv_t ipv;
-    conn_proto_t type;
-    addr_t peer_info;
-    sockfd_t sock_fd = FD_NULL;
-    sockfd_t conn_fd = FD_NULL;
+    std::string hostname = NULL_ADDRESS;
+    port_t port = NULL_PORT;
+    std::string ip = NULL_ADDRESS;
+    ipv_t ipv = IPv4;
+    conn_proto_t type = TCP;
+    addr_t peer_addr;
+    sockd_t cur_sd = MAIN_SOCKD;
+    std::map<sockd_t, conn_t> socks;
+    std::vector<sockd_t> conns;
 };
 
 #endif

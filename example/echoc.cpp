@@ -10,8 +10,8 @@ char buf[BUF_SIZE];
 ////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char ** argv)
 {
-    int cnt;
-    addr_t info;
+    size_t cnt;
+    addr_t peer;
     port_t port;
     std::string msg;
 
@@ -32,15 +32,15 @@ int main(int argc, char ** argv)
 
     printf("Connected to %s:%hu\n", HOSTNAME, port);
 
-    info = s.peerAddr();
+    peer = s.addr();
 
     while(s.isConnecting() && std::getline(std::cin, msg))
     {
         cnt = s.sendData(msg.c_str(), msg.length());
-        printf("send %d byte(s) to %s:%hu\n", cnt, info.addr.c_str(), port);
+        printf("send %zd byte(s) to %s:%hu\n", cnt, peer.addr.c_str(), port);
         if(0 == (cnt = s.recvData(buf, BUF_SIZE)))
             break;
-        printf("Receive %d Byte(s) from %s:%hu\n%s\n", cnt, info.addr.c_str(), info.port, buf);
+        printf("Receive %zd Byte(s) from %s:%hu\n%s\n", cnt, peer.addr.c_str(), peer.port, buf);
     }
     s.closeSocket();
     return 0;
