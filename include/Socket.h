@@ -143,7 +143,7 @@ public:
      @param _SockDesc descriptor of socket
      @return number of connections
      */
-    std::size_t connCnt(void);
+    size_t connCnt(void);
 
 
 
@@ -154,7 +154,7 @@ private:
     std::string ip = NULL_ADDRESS;
     ipv_t ipv = IPv4;
     conn_proto_t type = TCP;
-    addr_t peer_addr;
+    rwlock_t rwlock;
     sockd_t cur_sd = MAIN_SOCKD;
     std::map<sockd_t, conn_t> socks;
     std::vector<sockd_t> conns;

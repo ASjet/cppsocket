@@ -13,6 +13,7 @@
 #include <netdb.h>
 #include <signal.h>
 #include <netinet/tcp.h>
+#include <pthread.h>
 #include "Socket.h"
 #include "uni_socketIO.h"
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,6 +73,105 @@ int getPeerAddr(struct sockaddr_in *addr, addr_t &peer, ipv_t ipv)
     return 0;
 }
 ////////////////////////////////////////////////////////////////////////////////
+int initlock(lock_t * lock)
+{
+    int perror = pthread_mutex_init(lock, NULL);
+    if(0 == perror)
+        return 0;
+    fprintf(stderr,
+    "socketIOunix: initlock: pthread_mutex_init(%d):%s\n",
+    perror,
+    strerror(perror));
+    return -1;
+}
+int lock(lock_t *lock)
+{
+    int perror = pthread_mutex_lock(lock);
+    if(0 == perror)
+        return 0;
+    fprintf(stderr,
+    "socketIOunix: lock: pthread_mutex_lock(%d):%s\n",
+    perror,
+    strerror(perror));
+    return -1;
+}
+int unlock(lock_t *lock)
+{
+    int perror = pthread_mutex_unlock(lock);
+    if(0 == perror)
+        return 0;
+    fprintf(stderr,
+    "socketIOunix: unlock: pthread_mutex_unlock(%d):%s\n",
+    perror,
+    strerror(perror));
+    return -1;
+}
+int destroylock(lock_t * lock)
+{
+    int perror = pthread_mutex_destroy(lock);
+    if(0 == perror)
+        return 0;
+    fprintf(stderr,
+    "socketIOunix: destroylock: pthread_mutex_destroy(%d):%s\n",
+    perror,
+    strerror(perror));
+    return -1;
+}
+int initrwlock(rwlock_t * rwlock)
+{
+    int perror = pthread_rwlock_init(rwlock, NULL);
+    if(0 == perror)
+        return 0;
+    fprintf(stderr,
+    "socketIOunix: initrwlock: pthread_rwlock_init(%d):%s\n",
+    perror,
+    strerror(perror));
+    return -1;
+}
+int rlock(rwlock_t *rwlock)
+{
+    int perror = pthread_rwlock_rdlock(rwlock);
+    if(0 == perror)
+        return 0;
+    fprintf(stderr,
+    "socketIOunix: rlock: pthread_rwlock_rdlock(%d):%s\n",
+    perror,
+    strerror(perror));
+    return -1;
+}
+int wlock(rwlock_t *rwlock)
+{
+    int perror = pthread_rwlock_wrlock(rwlock);
+    if(0 == perror)
+        return 0;
+    fprintf(stderr,
+    "socketIOunix: wlock: pthread_rwlock_wrlock(%d):%s\n",
+    perror,
+    strerror(perror));
+    return -1;
+}
+int unrwlock(rwlock_t *rwlock)
+{
+    int perror = pthread_rwlock_unlock(rwlock);
+    if(0 == perror)
+        return 0;
+    fprintf(stderr,
+    "socketIOunix: unrwlock: pthread_rwlock_unlock(%d):%s\n",
+    perror,
+    strerror(perror));
+    return -1;
+}
+int destroyrwlock(rwlock_t *rwlock)
+{
+    int perror = pthread_rwlock_destroy(rwlock);
+    if(0 == perror)
+        return 0;
+    fprintf(stderr,
+    "socketIOunix: destroyrwlock: pthread_rwlock_destroy(%d):%s\n",
+    perror,
+    strerror(perror));
+    return -1;
+}
 void installSigIntHandler(void)
 {
     signal(SIGINT, sigint_handler);

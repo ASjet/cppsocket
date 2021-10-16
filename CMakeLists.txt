@@ -19,6 +19,7 @@ elseif(UNIX)
         src/Socket.cpp
         src/socketIOunix.cpp
     )
+    target_link_libraries( ${PROJECT_NAME} pthread )
 elseif(APPLE)
     message(STATUS "Unsupported platform: Darwin.")
 elseif(ANDROID)
