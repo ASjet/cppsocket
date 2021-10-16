@@ -6,28 +6,19 @@ include_directories(
     ${PROJECT_SOURCE_DIR}/include
 )
 
-
-add_subdirectory(
-    zlib
-)
-
-
 if(WIN32)
     add_library(
         ${PROJECT_NAME}
         src/Socket.cpp
-        src/http.cpp
         src/socketIOwin.cpp
     )
-    target_link_libraries( ${PROJECT_NAME} ws2_32 zlib)
+    target_link_libraries( ${PROJECT_NAME} ws2_32 )
 elseif(UNIX)
     add_library(
         ${PROJECT_NAME}
         src/Socket.cpp
-        src/http.cpp
         src/socketIOunix.cpp
     )
-    target_link_libraries( ${PROJECT_NAME} zlib)
 elseif(APPLE)
     message(STATUS "Unsupported platform: Darwin.")
 elseif(ANDROID)
