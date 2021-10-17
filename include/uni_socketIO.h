@@ -17,6 +17,8 @@
 
 typedef long ssize_t;
 typedef SOCKET sockfd_t;
+typedef int lock_t;
+typedef int rwlock_t;
 
 #ifdef _WIN64
 //define something for Windows (64-bit only)
@@ -64,17 +66,18 @@ int wlock(rwlock_t * _RWlock);
 int unrwlock(rwlock_t * _RWlock);
 int destroyrwlock(rwlock_t * _RWlock);
 void installSigIntHandler(void);
-sockfd_t uni_socket(ipv_t ipv, conn_proto_t type);
+sockfd_t uni_socket(ipv_t ipv, type_t type);
 bool is_open(sockfd_t sock_fd);
 void uni_close(sockfd_t fd);
-int uni_bind(sockfd_t sock_fd, port_t port, ipv_t ipv, conn_proto_t type);
+int uni_bind(sockfd_t sock_fd, port_t port, ipv_t ipv, type_t type);
 int uni_listen(sockfd_t sock_fd, int cnt);
 sockfd_t uni_accept(sockfd_t sock_fd, addr_t &peer, ipv_t ipv);
-int uni_connect(sockfd_t sock_fd, std::string host, port_t port, addr_t &peer, ipv_t ipv, conn_proto_t type);
+int uni_connect(sockfd_t sock_fd, std::string host, port_t port, addr_t &peer, ipv_t ipv, type_t type);
 size_t uni_send(sockfd_t sock_fd, const void *buf, size_t length);
-size_t uni_sendto(sockfd_t sock_fd, const void *buf, size_t length, std::string host, port_t port, addr_t &peer, ipv_t ipv, conn_proto_t type);
+size_t uni_sendto(sockfd_t sock_fd, const void *buf, size_t length, std::string host, port_t port, addr_t &peer, ipv_t ipv, type_t type);
 size_t uni_recv(sockfd_t sock_fd, void *buf, size_t size);
-size_t uni_recvfrom(sockfd_t sock_fd, void *buf, size_t size, std::string host, port_t port, addr_t &peer, ipv_t ipv, conn_proto_t type);
+size_t uni_recvfrom(sockfd_t sock_fd, void *buf, size_t size, std::string host, port_t port, addr_t &peer, ipv_t ipv, type_t type);
 bool uni_isConnecting(sockfd_t sock_fd);
+int uni_setub(sockfd_t sock_fd);
 
 #endif

@@ -39,7 +39,7 @@ void Socket::closeSocket()
     destroyrwlock(&rwlock);
 }
 
-Socket::Socket(ipv_t _IPVersion, conn_proto_t _ConnectType)
+Socket::Socket(ipv_t _IPVersion, type_t _ConnectType)
 {
     type = _ConnectType;
     ipv = _IPVersion;
@@ -67,31 +67,18 @@ Socket::~Socket()
 
 int Socket::bindTo(port_t port)
 {
-    int status;
-    if(-1 == rlock(&rwlock))
-        return -1;
-    status = uni_bind(socks[MAIN_SOCKD].fd, port, ipv, type);
-    unrwlock(&rwlock);
-    return status;
+    return uni_bind(socks[MAIN_SOCKD].fd, port, ipv, type);
 }
 
 int Socket::listenOn(int cnt)
 {
-    int status;
-    if(-1 == rlock(&rwlock))
-        return -1;
-    status = uni_listen(socks[MAIN_SOCKD].fd, cnt);
-    unrwlock(&rwlock);
-    return status;
+    return uni_listen(socks[MAIN_SOCKD].fd, cnt);
 }
 
 sockd_t Socket::acceptFrom(void)
 {
     conn_t conn;
-    if(-1 == rlock(&rwlock))
-        return SOCKD_ERR;
     sockfd_t conn_fd = uni_accept(socks[MAIN_SOCKD].fd, conn.addr, ipv);
-    unrwlock(&rwlock);
 
     if (is_open(conn_fd))
     {
@@ -110,12 +97,8 @@ sockd_t Socket::acceptFrom(void)
 
 int Socket::connectTo(std::string host, port_t port)
 {
-    if(-1 == rlock(&rwlock))
-        return -1;
     conn_t &ms = socks[MAIN_SOCKD];
-    int rc = uni_connect(ms.fd, host, port, ms.addr, ipv, type);
-    unrwlock(&rwlock);
-    if(-1 == rc)
+    if(-1 == uni_connect(ms.fd, host, port, ms.addr, ipv, type))
     {
         if(-1 == wlock(&rwlock))
             return -1;
@@ -134,10 +117,7 @@ int Socket::connectTo(std::string host, port_t port)
 
 size_t Socket::sendData(const void *buf, size_t size, sockd_t sd)
 {
-    if(-1 == rlock(&rwlock))
-        return 0;
     size_t cnt = uni_send(socks[sd].fd, buf, size);
-    unrwlock(&rwlock);
     if (cnt < size)
         fprintf(stderr,
                 "Socket: sendData: Only %zd/%zd byte(s) data is sent.\n",
@@ -148,11 +128,9 @@ size_t Socket::sendData(const void *buf, size_t size, sockd_t sd)
 
 size_t Socket::sendTo(const void *buf, size_t size, std::string host, port_t port)
 {
-    if(-1 == rlock(&rwlock))
         return 0;
     conn_t &ms = socks[MAIN_SOCKD];
     size_t cnt = uni_sendto(ms.fd, buf, size, host, port, ms.addr, ipv, type);
-    unrwlock(&rwlock);
     if (cnt < size)
         fprintf(stderr,
                 "Socket: sendTo: only sent %zd/%zd Byte(s)\n",
@@ -164,22 +142,14 @@ size_t Socket::sendTo(const void *buf, size_t size, std::string host, port_t por
 size_t Socket::recvData(void *buf, size_t size, sockd_t sd)
 {
     memset(buf, 0, size);
-    if(-1 == rlock(&rwlock))
-        return 0;
-    size_t cnt = uni_recv(socks[sd].fd, buf, size);
-    unrwlock(&rwlock);
-    return cnt;
+    return uni_recv(socks[sd].fd, buf, size);
 }
 
 size_t Socket::recvFrom(void *buf, size_t size, std::string host, port_t port)
 {
     memset(buf, 0, size);
-    if(-1 == rlock(&rwlock))
-        return 0;
     conn_t &ms = socks[MAIN_SOCKD];
-    size_t cnt = uni_recvfrom(ms.fd, buf, size, host, port, ms.addr, ipv, type);
-    unrwlock(&rwlock);
-    return cnt;
+    return uni_recvfrom(ms.fd, buf, size, host, port, ms.addr, ipv, type);
 }
 
 addr_t &Socket::addr(sockd_t sd)
@@ -193,7 +163,10 @@ addr_t &Socket::addr(sockd_t sd)
 
 bool Socket::isConnecting(sockd_t sd)
 {
-    return uni_isConnecting(socks[sd].fd);
+    if(socks.find(sd) == socks.end())
+        return false;
+    else
+        return uni_isConnecting(socks[sd].fd);
 }
 
 bool Socket::avaliable(sockd_t sd)
@@ -208,4 +181,11 @@ size_t Socket::connCnt(void)
     size_t cnt = conns.size();
     unrwlock(&rwlock);
     return cnt;
+}
+
+int Socket::setub(sockd_t sd)
+{
+    if(socks.find(sd) == socks.end())
+        return -1;
+    return uni_setub(socks[sd].fd);
 }

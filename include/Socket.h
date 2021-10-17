@@ -24,10 +24,12 @@ enum ipv_t
     IPv4,
     IPv6
 };
-enum conn_proto_t
+enum type_t
 {
     TCP,
-    UDP
+    UDP,
+    SCTP,
+    RAW
 };
 struct addr_t
 {
@@ -47,7 +49,7 @@ class Socket
 {
 public:
     Socket() = default;
-    Socket(ipv_t _IPVersion, conn_proto_t _ConnectType);
+    Socket(ipv_t _IPVersion, type_t _ConnectType);
     ~Socket();
 
     /*
@@ -145,7 +147,7 @@ public:
      */
     size_t connCnt(void);
 
-
+    int setub(sockd_t _SockDesc = MAIN_SOCKD);
 
 
 private:
@@ -153,7 +155,7 @@ private:
     port_t port = NULL_PORT;
     std::string ip = NULL_ADDRESS;
     ipv_t ipv = IPv4;
-    conn_proto_t type = TCP;
+    type_t type = TCP;
     rwlock_t rwlock;
     sockd_t cur_sd = MAIN_SOCKD;
     std::map<sockd_t, conn_t> socks;

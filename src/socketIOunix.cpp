@@ -14,12 +14,41 @@
 #include <signal.h>
 #include <netinet/tcp.h>
 #include <pthread.h>
+#include <fcntl.h>
 #include "Socket.h"
 #include "uni_socketIO.h"
 ////////////////////////////////////////////////////////////////////////////////
 #define AF(ipv) ((IPv4 == (ipv)) ? AF_INET : AF_INET6)
-#define PROTO(type) ((TCP == (type)) ? IPPROTO_TCP : IPPROTO_UDP)
-#define SOCK_TYPE(type) ((TCP == (type)) ? SOCK_STREAM : SOCK_DGRAM)
+int PROTO(type_t type)
+{
+    switch(type)
+    {
+        TCP:
+            return IPPROTO_TCP;
+        UDP:
+            return IPPROTO_UDP;
+        SCTP:
+            return IPPROTO_SCTP;
+        default:
+            return 0;
+    }
+}
+int SOCK_TYPE(type_t type)
+{
+    switch(type)
+    {
+        TCP:
+            return SOCK_STREAM;
+        UDP:
+            return SOCK_DGRAM;
+        SCTP:
+            return SOCK_SEQPACKET;
+        RAW:
+            return SOCK_RAW;
+        default:
+            return 0;
+    }
+}
 //////////////////////////////////////////////////////////////////////////////////
 void sigint_handler(int sig)
 {
@@ -31,7 +60,7 @@ void sigint_handler(int sig)
 int ns(const char *host,
        const char *port,
        struct addrinfo **result,
-       ipv_t ipv, conn_proto_t type)
+       ipv_t ipv, type_t type)
 {
     int errcode;
     struct addrinfo hints;
@@ -177,7 +206,7 @@ void installSigIntHandler(void)
     signal(SIGINT, sigint_handler);
 }
 ////////////////////////////////////////////////////////////////////////////////
-sockfd_t uni_socket(ipv_t ipv, conn_proto_t type)
+sockfd_t uni_socket(ipv_t ipv, type_t type)
 {
     int reuse = 1;
     sockfd_t fd;
@@ -212,7 +241,7 @@ void uni_close(sockfd_t fd)
         close(fd);
 }
 
-int uni_bind(sockfd_t sock_fd, port_t port, ipv_t ipv, conn_proto_t type)
+int uni_bind(sockfd_t sock_fd, port_t port, ipv_t ipv, type_t type)
 {
     int errcode;
     struct addrinfo *result = nullptr;
@@ -281,7 +310,7 @@ int uni_connect(sockfd_t sock_fd,
                 port_t port,
                 addr_t &peer,
                 ipv_t ipv,
-                conn_proto_t type)
+                type_t type)
 {
     struct addrinfo *result = nullptr, *p = nullptr;
     if (0 == ns(host.c_str(), std::to_string(port).c_str(), &result, ipv, type))
@@ -332,7 +361,7 @@ size_t uni_sendto(sockfd_t sock_fd,
                    port_t port,
                    addr_t &peer,
                    ipv_t ipv,
-                   conn_proto_t type)
+                   type_t type)
 {
     ssize_t cnt;
     struct addrinfo *result = nullptr, *p = nullptr;
@@ -369,6 +398,8 @@ size_t uni_recv(sockfd_t sock_fd, void *buf, size_t size)
     ssize_t cnt;
     if (-1 == (cnt = recv(sock_fd, (char *)buf, size, 0)))
     {
+        if(EWOULDBLOCK == errno)
+            return 0;
         fprintf(stderr,
                 "socketIOunix: uni_recv: recv(%d): unable to receive data\n",
                 cnt);
@@ -384,7 +415,7 @@ size_t uni_recvfrom(sockfd_t sock_fd,
                      port_t port,
                      addr_t &peer,
                      ipv_t ipv,
-                     conn_proto_t type)
+                     type_t type)
 {
     ssize_t cnt;
     struct addrinfo *result = nullptr, *p = nullptr;
@@ -403,11 +434,12 @@ size_t uni_recvfrom(sockfd_t sock_fd,
             }
         }
         freeaddrinfo(result);
-        fprintf(stderr,
-                "socketIOunix: uni_recvfrom: recvfrom(%d): unable to receive data from %s:%hu\n",
-                cnt,
-                host.c_str(),
-                port);
+        if(EWOULDBLOCK != errno)
+            fprintf(stderr,
+                    "socketIOunix: uni_recvfrom: recvfrom(%d): unable to receive data from %s:%hu\n",
+                    cnt,
+                    host.c_str(),
+                    port);
     }
     else
         fprintf(stderr, " in socketIOunix: uni_recvfrom\n");
@@ -423,6 +455,12 @@ bool uni_isConnecting(sockfd_t sock_fd)
     size_t len = sizeof(info);
     getsockopt(sock_fd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len);
     return (info.tcpi_state == TCP_ESTABLISHED);
+}
+
+int uni_setub(sockfd_t sock_fd)
+{
+    fcntl(sock_fd, F_SETFL, fcntl(sock_fd, F_GETFL, 0) | O_NONBLOCK);
+    return 0;
 }
 
 #endif

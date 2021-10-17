@@ -18,12 +18,40 @@
 #pragma comment(lib, "AdvApi32.lib")
 ////////////////////////////////////////////////////////////////////////////////
 #define AF(ipv) ((IPv4 == (ipv)) ? AF_INET : AF_INET6)
-#define PROTO(type) ((TCP == (type)) ? IPPROTO_TCP : IPPROTO_UDP)
-#define SOCK_TYPE(type) ((TCP == (type)) ? SOCK_STREAM : SOCK_DGRAM)
+int PROTO(type_t type)
+{
+    switch (type)
+    {
+    TCP:
+        return IPPROTO_TCP;
+    UDP:
+        return IPPROTO_UDP;
+    SCTP:
+        return IPPROTO_SCTP;
+    default:
+        return 0;
+    }
+}
+int SOCK_TYPE(type_t type)
+{
+    switch (type)
+    {
+    TCP:
+        return SOCK_STREAM;
+    UDP:
+        return SOCK_DGRAM;
+    SCTP:
+        return SOCK_SEQPACKET;
+    RAW:
+        return SOCK_RAW;
+    default:
+        return 0;
+    }
+}
 ////////////////////////////////////////////////////////////////////////////////
 void sigint_handler(int sig)
 {
-    for(auto s = socket_list.begin(); s != socket_list.end(); ++s)
+    for (auto s = socket_list.begin(); s != socket_list.end(); ++s)
         s->closeSocket();
     WSACleanup();
     exit(sig);
@@ -31,7 +59,7 @@ void sigint_handler(int sig)
 int ns(const char *host,
        const char *port,
        struct addrinfo **result,
-       ipv_t ipv, conn_proto_t type)
+       ipv_t ipv, type_t type)
 {
     int iResult;
     struct addrinfo hints;
@@ -74,8 +102,48 @@ void installSigIntHandler(void)
 {
     signal(SIGINT, sigint_handler);
 }
+int initlock(lock_t *_Lock)
+{
+    return 0;
+}
+int lock(lock_t *_Lock)
+{
+    return 0;
+}
+int unlock(lock_t *_Lock)
+{
+    return 0;
+}
+int destroylock(lock_t *_Lock)
+{
+    return 0;
+}
+int initrwlock(rwlock_t *_RWlock)
+{
+    return 0;
+}
+int rlock(rwlock_t *_RWlock)
+{
+    return 0;
+}
+int wlock(rwlock_t *_RWlock)
+{
+    return 0;
+}
+int unrwlock(rwlock_t *_RWlock)
+{
+    return 0;
+}
+int destroyrwlock(rwlock_t *_RWlock)
+{
+    return 0;
+}
+int uni_setub(sockfd_t sock_fd)
+{
+    return 0;
+}
 ////////////////////////////////////////////////////////////////////////////////
-sockfd_t uni_socket(ipv_t ipv, conn_proto_t type)
+sockfd_t uni_socket(ipv_t ipv, type_t type)
 {
     int iResult;
     WSADATA wsaData;
@@ -92,7 +160,7 @@ sockfd_t uni_socket(ipv_t ipv, conn_proto_t type)
     }
 
     // Create a SOCKET
-    if (INVALID_SOCKET == (sockfd = socket(AF(ipv), SOCK_TYPE(type), PROTO(ipv))))
+    if (INVALID_SOCKET == (sockfd = socket(AF(ipv), SOCK_TYPE(type), PROTO(type))))
     {
         fprintf(stderr,
                 "socketIOwin: uni_socket: socket(%d)\n",
@@ -101,9 +169,10 @@ sockfd_t uni_socket(ipv_t ipv, conn_proto_t type)
     }
 
     BOOL bOptVal = FALSE;
-    int bOptLen = sizeof (BOOL);
-    iResult = setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *) &bOptVal, bOptLen);
-    if (iResult == SOCKET_ERROR) {
+    int bOptLen = sizeof(BOOL);
+    iResult = setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&bOptVal, bOptLen);
+    if (iResult == SOCKET_ERROR)
+    {
         wprintf(L"setsockopt for SO_KEEPALIVE failed with error: %u\n", WSAGetLastError());
     }
 
@@ -121,7 +190,7 @@ void uni_close(sockfd_t fd)
         closesocket(fd);
 }
 
-int uni_bind(sockfd_t sock_fd, port_t port, ipv_t ipv, conn_proto_t type)
+int uni_bind(sockfd_t sock_fd, port_t port, ipv_t ipv, type_t type)
 {
     struct addrinfo *result = nullptr;
     if (-1 == ns(nullptr, std::to_string(port).c_str(), &result, ipv, type))
@@ -164,7 +233,7 @@ sockfd_t uni_accept(sockfd_t sock_fd, addr_t &peer, ipv_t ipv)
 
     if (INVALID_SOCKET == (conn_fd = accept(sock_fd, (struct sockaddr *)addr, &len)))
     {
-        if(WSAEINTR != WSAGetLastError())
+        if (WSAEINTR != WSAGetLastError())
             fprintf(stderr,
                     "socketIOwin: uni_accept: accept(%d)\n",
                     WSAGetLastError());
@@ -188,7 +257,7 @@ int uni_connect(sockfd_t sock_fd,
                 port_t port,
                 addr_t &peer,
                 ipv_t ipv,
-                conn_proto_t type)
+                type_t type)
 {
     struct addrinfo *result = nullptr, *p = nullptr;
     if (0 == ns(host.c_str(), std::to_string(port).c_str(), &result, ipv, type))
@@ -232,13 +301,13 @@ size_t uni_send(sockfd_t sock_fd, const void *buf, size_t length)
 }
 
 size_t uni_sendto(sockfd_t sock_fd,
-                   const void *buf,
-                   size_t length,
-                   std::string host,
-                   port_t port,
-                   addr_t &peer,
-                   ipv_t ipv,
-                   conn_proto_t type)
+                  const void *buf,
+                  size_t length,
+                  std::string host,
+                  port_t port,
+                  addr_t &peer,
+                  ipv_t ipv,
+                  type_t type)
 {
     int cnt;
     struct addrinfo *result = nullptr, *p = nullptr;
@@ -284,13 +353,13 @@ size_t uni_recv(sockfd_t sock_fd, void *buf, size_t size)
 }
 
 size_t uni_recvfrom(sockfd_t sock_fd,
-                     void *buf,
-                     size_t size,
-                     std::string host,
-                     port_t port,
-                     addr_t &peer,
-                     ipv_t ipv,
-                     conn_proto_t type)
+                    void *buf,
+                    size_t size,
+                    std::string host,
+                    port_t port,
+                    addr_t &peer,
+                    ipv_t ipv,
+                    type_t type)
 {
     int cnt;
     struct addrinfo *result = nullptr, *p = nullptr;
