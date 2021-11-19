@@ -1,47 +1,55 @@
-#include <iostream>
-#include <string>
+#include "Socket.h"
 #include <cstdio>
 #include <cstring>
-#include "Socket.h"
+#include <iostream>
+#include <string>
+#include <system_error>
+using namespace CppSocket;
 ////////////////////////////////////////////////////////////////////////////////
-#define BUF_SIZE 2048
-#define HOSTNAME "localhost"
-char buf[BUF_SIZE];
+constexpr std::size_t BUF_SIZE(2048);
+const std::string HOSTNAME("localhost");
+byte buf[BUF_SIZE];
 ////////////////////////////////////////////////////////////////////////////////
-int main(int argc, char ** argv)
-{
-    size_t cnt;
-    addr_t peer;
-    port_t port;
-    std::string msg;
-
-    if(argc != 2)
-    {
-        printf("Usage %s <bind_port>", argv[0]);
-        return 0;
-    }
-
-    port = std::stoi(argv[1]);
-
-    Socket s(IPv4, TCP);
-    if(!s.avaliable())
-        return -1;
-
-    if(-1 == s.connectTo(HOSTNAME, port))
-        return -1;
-
-    printf("Connected to %s:%hu\n", HOSTNAME, port);
-
-    peer = s.addr();
-
-    while(s.isConnecting() && std::getline(std::cin, msg))
-    {
-        cnt = s.sendData(msg.c_str(), msg.length());
-        printf("send %zd byte(s) to %s:%hu\n", cnt, peer.addr.c_str(), port);
-        if(0 == (cnt = s.recvData(buf, BUF_SIZE)))
-            break;
-        printf("Receive %zd Byte(s) from %s:%hu\n%s\n", cnt, peer.addr.c_str(), peer.port, buf);
-    }
-    s.closeSocket();
+int main(int argc, char **argv) {
+  if (argc != 2) {
+    printf("Usage %s <bind_port>", argv[0]);
     return 0;
+  }
+
+  port_t port = std::stoi(argv[1]);
+  addr_t addr(HOSTNAME, port);
+  string msg;
+
+  try {
+    Socket s(ip_v::IPv4, proto_t::TCP);
+    if (!s.connect(addr)) {
+      fprintf(stderr, "Cannot connect to %s:%hu\n", addr.ipaddr.c_str(),
+              addr.port);
+      return 0;
+    }
+
+    addr_t peer = s.addr();
+    printf("Connected to %s:%hu\n", peer.ipaddr.c_str(), peer.port);
+
+    while (s.isConnecting() && std::getline(std::cin, msg)) {
+      auto cnt =
+          s.send(reinterpret_cast<const byte *>(msg.c_str()), msg.length());
+      printf("send %zd byte(s)\n", cnt);
+      memset(buf, 0, BUF_SIZE);
+      if (0 == (cnt = s.recv(buf, BUF_SIZE)))
+        break;
+      printf("Receive %zd byte(s)\n%s\n", cnt, buf);
+    }
+
+    if (!s.isConnecting())
+      printf("Connection closed\n");
+
+    s.close();
+  } catch (std::system_error &e) {
+    auto errcode = e.code().value();
+    fprintf(stderr, "%s(%d): %s\n", e.what(), errcode,
+            Socket::strerr(errcode));
+    return -1;
+  }
+  return 0;
 }

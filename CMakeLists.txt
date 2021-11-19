@@ -19,7 +19,6 @@ elseif(UNIX)
         src/Socket.cpp
         src/socketIOunix.cpp
     )
-    target_link_libraries( ${PROJECT_NAME} pthread )
 elseif(APPLE)
     message(STATUS "Unsupported platform: Darwin.")
 elseif(ANDROID)
@@ -51,3 +50,6 @@ target_include_directories(
     PUBLIC
     ${PROJECT_SOURCE_DIR}/include
 )
+
+add_compile_options(-Wall -g)
+set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 20)
