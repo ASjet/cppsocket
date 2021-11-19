@@ -19,7 +19,6 @@ int main(int argc, char **argv) {
   port_t port = std::stoi(argv[1]);
   addr_t addr(HOSTNAME, port);
   string msg;
-  std::size_t cnt;
 
   try {
     Socket s(ip_v::IPv4, proto_t::TCP);
@@ -43,12 +42,12 @@ int main(int argc, char **argv) {
     }
 
     if (!s.isConnecting())
-      printf("Connection closed.\n");
+      printf("Connection closed\n");
 
     s.close();
   } catch (std::system_error &e) {
     auto errcode = e.code().value();
-    fprintf(stderr, "error: %s(%d): %s\n", e.what(), errcode,
+    fprintf(stderr, "%s(%d): %s\n", e.what(), errcode,
             Socket::strerr(errcode));
     return -1;
   }

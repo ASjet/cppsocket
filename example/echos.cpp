@@ -41,16 +41,16 @@ int main(int argc, char **argv) {
                peer.ipaddr.c_str(), peer.port, buf);
         s.send(buf, cnt, cs);
       }
-      printf("Connection closed.\n");
+      printf("Connection closed\n");
     }
 
     s.close();
   } catch (std::system_error &e) {
     auto errcode = e.code().value();
-    fprintf(stderr, "error: %s(%d): %s\n", e.what(), errcode,
+    fprintf(stderr, "%s(%d): %s\n", e.what(), errcode,
             Socket::strerr(errcode));
     return -1;
   }
-  printf("Echo server shutdown.\n");
+  printf("Echo server shutdown\n");
   return 0;
 }
