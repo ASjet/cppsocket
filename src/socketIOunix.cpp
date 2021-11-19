@@ -27,13 +27,13 @@ const string bind_em("bind");
 const string listen_em("listen");
 const string accept_em("accept");
 ////////////////////////////////////////////////////////////////////////////////
-void throw_em(const int code, const string em) {
+static void throw_em(const int code, const string em) {
   throw std::system_error(code, std::system_category(), em);
 }
-int AF(const ip_v ipv) noexcept {
+static int AF(const ip_v ipv) noexcept {
   return ((ip_v::IPv4 == (ipv)) ? AF_INET : AF_INET6);
 }
-int PROTO(const proto_t proto) noexcept {
+static int PROTO(const proto_t proto) noexcept {
   switch (proto) {
   case proto_t::TCP:
     return IPPROTO_TCP;
@@ -45,7 +45,7 @@ int PROTO(const proto_t proto) noexcept {
     assert(false);
   }
 }
-int SOCK_TYPE(const proto_t proto) noexcept {
+static int SOCK_TYPE(const proto_t proto) noexcept {
   switch (proto) {
   case proto_t::TCP:
     return SOCK_STREAM;
@@ -60,7 +60,7 @@ int SOCK_TYPE(const proto_t proto) noexcept {
   }
 }
 //////////////////////////////////////////////////////////////////////////////////
-bool ns(const char *host, const char *port, addrinfo **result, const ip_v ipv,
+static bool ns(const char *host, const char *port, addrinfo **result, const ip_v ipv,
         const proto_t proto) {
   addrinfo hints;
   memset(&hints, 0, sizeof(hints));
@@ -74,7 +74,7 @@ bool ns(const char *host, const char *port, addrinfo **result, const ip_v ipv,
   return (0 == getaddrinfo(host, port, &hints, result));
 }
 
-void getPeerAddr(const sockaddr_in *addr, addr_t &peer, const ip_v ipv) {
+static void getPeerAddr(const sockaddr_in *addr, addr_t &peer, const ip_v ipv) {
   char addr_buf[IPADDR_BUFSIZE];
   memset(addr_buf, 0, IPADDR_BUFSIZE);
 
@@ -91,43 +91,43 @@ void getPeerAddr(const sockaddr_in *addr, addr_t &peer, const ip_v ipv) {
 ////////////////////////////////////////////////////////////////////////////////
 sockd_t uni_socket(const ip_v ipv, const proto_t proto) {
   int reuse = 1;
-  sockd_t fd;
+  sockd_t sd = socket(AF(ipv), SOCK_TYPE(proto), PROTO(proto));
 
-  if (0 > (fd = socket(AF(ipv), SOCK_TYPE(proto), PROTO(proto))))
+  if (NULL_SOCK == sd)
     throw_em(errno, socket_em);
 
-  setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-  return fd;
+  setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+  return sd;
 }
 
-void uni_close(const sockd_t fd) {
-  if (NULL_SOCKD != fd)
-    close(fd);
+void uni_close(const sockd_t sd) {
+  if (NULL_SOCKD != sd)
+    close(sd);
 }
 
-void uni_bind(const sockd_t sock_fd, const port_t port, const ip_v ipv,
+void uni_bind(const sockd_t sd, const port_t port, const ip_v ipv,
               const proto_t proto) {
   addrinfo *result = nullptr;
   ns(nullptr, std::to_string(port).c_str(), &result, ipv, proto);
-  int ret = bind(sock_fd, result->ai_addr, result->ai_addrlen);
+  int ret = bind(sd, result->ai_addr, result->ai_addrlen);
   freeaddrinfo(result);
 
   if (-1 == ret)
     throw_em(errno, bind_em);
 }
 
-void uni_listen(const sockd_t sock_fd, const std::size_t cnt) {
-  if (-1 == listen(sock_fd, cnt))
+void uni_listen(const sockd_t sd, const std::size_t cnt) {
+  if (-1 == listen(sd, cnt))
     throw_em(errno, listen_em);
 }
 
-sockd_t uni_accept(const sockd_t sock_fd, addr_t &peer, const ip_v ipv) {
-  socklen_t len = SOCKADDR_BUFSIZE;
-  byte addr[len];
-  memset(addr, 0, len);
-  sockd_t conn_fd = accept(sock_fd, reinterpret_cast<sockaddr *>(addr), &len);
+sockd_t uni_accept(const sockd_t sd, addr_t &peer, const ip_v ipv) {
+  byte addr[SOCKADDR_BUFSIZE];
+  memset(addr, 0, SOCKADDR_BUFSIZE);
+  socklen_t len(SOCKADDR_BUFSIZE);
+  sockd_t cd = accept(sd, reinterpret_cast<sockaddr *>(addr), &len);
 
-  if (-1 == conn_fd) {
+  if (NULL_SOCK == cd) {
     switch (errno) {
     case EAGAIN: // Return with no block
     case EINTR:  // Return from interrupt
@@ -138,20 +138,17 @@ sockd_t uni_accept(const sockd_t sock_fd, addr_t &peer, const ip_v ipv) {
     }
   }
 
-  if (SOCKADDR_BUFSIZE == len)
-    addr[SOCKADDR_BUFSIZE - 1] = '\0';
-
   getPeerAddr(reinterpret_cast<sockaddr_in *>(addr), peer, ipv);
-  return conn_fd;
+  return cd;
 }
 
-bool uni_connect(const sockd_t sock_fd, const addr_t &host, addr_t &peer,
+bool uni_connect(const sockd_t sd, const addr_t &host, addr_t &peer,
                  const ip_v ipv, const proto_t proto) {
   addrinfo *result = nullptr, *p = nullptr;
   if (ns(host.ipaddr.c_str(), std::to_string(host.port).c_str(), &result, ipv,
          proto)) {
     for (p = result; nullptr != p; p = p->ai_next)
-      if (0 == connect(sock_fd, p->ai_addr, p->ai_addrlen))
+      if (0 == connect(sd, p->ai_addr, p->ai_addrlen))
         break;
 
     freeaddrinfo(result);
@@ -165,13 +162,13 @@ bool uni_connect(const sockd_t sock_fd, const addr_t &host, addr_t &peer,
   return false;
 }
 
-std::size_t uni_send(const sockd_t sock_fd, const byte *buf,
+std::size_t uni_send(const sockd_t sd, const byte *buf,
                      const std::size_t length) {
-  auto cnt = send(sock_fd, buf, length, 0);
+  auto cnt = send(sd, buf, length, 0);
   return (-1 == cnt) ? 0 : static_cast<std::size_t>(cnt);
 }
 
-std::size_t uni_sendto(const sockd_t sock_fd, const byte *buf,
+std::size_t uni_sendto(const sockd_t sd, const byte *buf,
                        const std::size_t length, const addr_t &host,
                        addr_t &peer, const ip_v ipv, const proto_t proto) {
   ssize_t cnt;
@@ -179,8 +176,7 @@ std::size_t uni_sendto(const sockd_t sock_fd, const byte *buf,
   if (ns(host.ipaddr.c_str(), std::to_string(host.port).c_str(), &result, ipv,
          proto)) {
     for (p = result; nullptr != p; p = p->ai_next)
-      if (0 <
-          (cnt = sendto(sock_fd, buf, length, 0, p->ai_addr, p->ai_addrlen)))
+      if (0 < (cnt = sendto(sd, buf, length, 0, p->ai_addr, p->ai_addrlen)))
         break;
 
     freeaddrinfo(result);
@@ -194,21 +190,20 @@ std::size_t uni_sendto(const sockd_t sock_fd, const byte *buf,
   return 0;
 }
 
-std::size_t uni_recv(const sockd_t sock_fd, byte *buf, const std::size_t size) {
-  auto cnt = recv(sock_fd, buf, size, 0);
+std::size_t uni_recv(const sockd_t sd, byte *buf, const std::size_t size) {
+  auto cnt = recv(sd, buf, size, 0);
   return (-1 == cnt) ? 0 : static_cast<std::size_t>(cnt);
 }
 
-const std::size_t uni_recvfrom(const sockd_t sock_fd, byte *buf,
+const std::size_t uni_recvfrom(const sockd_t sd, byte *buf,
                                const std::size_t size, const addr_t &host,
                                addr_t &peer, ip_v ipv, const proto_t proto) {
   ssize_t cnt;
   addrinfo *result = nullptr, *p = nullptr;
-  if (0 == ns(host.ipaddr.c_str(), std::to_string(host.port).c_str(), &result,
-              ipv, proto)) {
+  if (ns(host.ipaddr.c_str(), std::to_string(host.port).c_str(), &result, ipv,
+         proto)) {
     for (p = result; nullptr != p; p = p->ai_next)
-      if (0 <
-          (cnt = recvfrom(sock_fd, buf, size, 0, p->ai_addr, &p->ai_addrlen)))
+      if (0 < (cnt = recvfrom(sd, buf, size, 0, p->ai_addr, &p->ai_addrlen)))
         break;
 
     freeaddrinfo(result);
@@ -222,20 +217,18 @@ const std::size_t uni_recvfrom(const sockd_t sock_fd, byte *buf,
   return 0;
 }
 
-bool uni_isConnecting(const sockd_t sock_fd) {
+bool uni_isConnecting(const sockd_t sd) {
   tcp_info info;
-  auto len = sizeof(info);
+  constexpr auto len = sizeof(info);
   memset(&info, 0, len);
-  getsockopt(sock_fd, IPPROTO_TCP, TCP_INFO, &info,
+  getsockopt(sd, IPPROTO_TCP, TCP_INFO, &info,
              reinterpret_cast<socklen_t *>(&len));
   return (info.tcpi_state == TCP_ESTABLISHED);
 }
 
-bool uni_setub(const sockd_t sock_fd) {
-  return (-1 ==
-          fcntl(sock_fd, F_SETFL, fcntl(sock_fd, F_GETFL, 0) | O_NONBLOCK))
-             ? false
-             : true;
+bool uni_setub(const sockd_t sd) {
+  return (-1 == fcntl(sd, F_SETFL, fcntl(sd, F_GETFL, 0) | O_NONBLOCK)) ? false
+                                                                        : true;
 }
 
 const char *uni_strerr(const int ec) { return strerror(ec); }
