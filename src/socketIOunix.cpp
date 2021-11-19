@@ -219,7 +219,7 @@ const std::size_t uni_recvfrom(const sockd_t sd, byte *buf,
 
 bool uni_isConnecting(const sockd_t sd) {
   tcp_info info;
-  constexpr auto len = sizeof(info);
+  auto len = sizeof(info);
   memset(&info, 0, len);
   getsockopt(sd, IPPROTO_TCP, TCP_INFO, &info,
              reinterpret_cast<socklen_t *>(&len));
