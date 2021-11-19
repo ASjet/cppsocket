@@ -1,191 +1,199 @@
-#include <cstdio>
-#include <cstring>
-#include <vector>
-#include <cstddef>
 #include "Socket.h"
 #include "uni_socketIO.h"
-std::vector<Socket> socket_list;
-addr_t NULL_ADDR;
+#include <atomic>
+#include <condition_variable>
+#include <cstdio>
+#include <cstring>
+#include <list>
+#include <memory>
+#include <mutex>
+#include <stdexcept>
+#include <unordered_map>
+#include <utility>
+using CppSocket::addr_t;
+using CppSocket::byte;
+using CppSocket::ip_v;
+using CppSocket::port_t;
+using CppSocket::proto_t;
+using std::string;
 ////////////////////////////////////////////////////////////////////////////////
-void Socket::disconnect(sockd_t sd)
-{
-    if(socks.find(sd) == socks.end())
-    {
-        if(-1 == wlock(&rwlock))
-            return;
-        if(is_open(socks[sd].fd))
-            uni_close(socks[sd].fd);
-        socks.erase(sd);
+sockd_t uni_socket(const ip_v _IPVersion, const proto_t _Protocol);
+void uni_close(const sockd_t _Socket);
+void uni_bind(const sockd_t _Socket, const port_t _Port, const ip_v _IPVersion,
+              const proto_t _Protocol);
+void uni_listen(const sockd_t _Socket, const std::size_t _ListenCount);
+sockd_t uni_accept(const sockd_t _Socket, addr_t &_OppoAddr,
+                   const ip_v _IPversion);
+bool uni_connect(const sockd_t _Socket, const addr_t &_HostAddr,
+                 addr_t &_OppoAddr, const ip_v _IPVersion,
+                 const proto_t _Protocol);
+std::size_t uni_send(const sockd_t _Socket, const byte *_DataBuffer,
+                     const std::size_t _Length);
+std::size_t uni_sendto(const sockd_t _Socket, const byte *_DataBuffer,
+                       const std::size_t _Length, const addr_t &_HostAddr,
+                       addr_t &_OppoAddr, const ip_v _IPVersion,
+                       const proto_t _Protocol);
+std::size_t uni_recv(const sockd_t _Socket, byte *_DataBuffer,
+                     const std::size_t _BufferSize);
+std::size_t uni_recvfrom(const sockd_t _Socket, byte *_DataBuffer,
+                         const std::size_t _BufferSize, const addr_t &_HostAddr,
+                         addr_t &_OppoAddr, const ip_v _IPVersion,
+                         const proto_t _Protocol);
+bool uni_isConnecting(const sockd_t _Socket);
+bool uni_setub(const sockd_t _Socket);
+const char *uni_strerr(const int _ErrorCode);
+////////////////////////////////////////////////////////////////////////////////
+namespace CppSocket {
+////////////////////////////////////////////////////////////////////////////////
+/* Error messages */
+const string connect_errmsg("\nUnable to recreate socket after\
+                            failed to establish connection\n");
+////////////////////////////////////////////////////////////////////////////////
+struct Socket::conn_t {
+  conn_t() : sock(NULL_SOCKD) {}
+  conn_t(sockd_t _Socket) : sock(_Socket) {}
+  conn_t(sockd_t _Socket, addr_t _Addr) : sock(_Socket), addr(_Addr) {}
+  sockd_t sock;
+  addr_t addr;
+};
+////////////////////////////////////////////////////////////////////////////////
+struct Socket::Impl {
+  Impl(ip_v _IPVersion, proto_t _Protocol)
+      : hostname(NULL_ADDRESS), port(NULL_PORT), ipaddr(NULL_ADDRESS),
+        ipv(_IPVersion), proto(_Protocol), cur_sd(NULL_SOCK) {}
+  ~Impl() {
+    for (const auto &s : socks)
+      uni_close(s.second.sock);
+  }
+  string hostname;
+  port_t port;
+  string ipaddr;
+  ip_v ipv;
+  proto_t proto;
+  std::atomic<sock_t> cur_sd;
+  std::mutex mutex_socks, mutex_conns;
+  std::unordered_map<sock_t, conn_t> socks;
+  std::list<sock_t> conns;
+};
 
-        for(auto i = conns.begin(); i != conns.end(); ++i)
-            if(*i == sd)
-            {
-                conns.erase(i);
-                break;
-            }
-        unrwlock(&rwlock);
+const addr_t NULL_ADDR;
+/////////////////////////////////////////////////////////////////////////////////
+void Socket::disconnect(const sock_t sd) {
+  if (pImpl_->socks.contains(sd)) {
+    uni_close(pImpl_->socks[sd].sock);
+    std::unique_lock<std::mutex> lock(pImpl_->mutex_socks);
+    pImpl_->socks.erase(sd);
+    lock.unlock();
+
+    for (auto i = pImpl_->conns.cbegin(); i != pImpl_->conns.cend(); ++i)
+      if (*i == sd) {
+        std::scoped_lock<std::mutex> lock(pImpl_->mutex_conns);
+        pImpl_->conns.erase(i);
+        break;
+      }
+  }
+}
+
+void Socket::close() {
+  for (const auto &s : pImpl_->socks)
+    uni_close(s.second.sock);
+}
+
+Socket::Socket(const ip_v ipv, const proto_t proto)
+    : pImpl_(std::make_shared<Impl>(ipv, proto)) {
+  pImpl_->ipv = ipv;
+  pImpl_->proto = proto;
+  sockd_t sockd = uni_socket(ipv, proto);
+  std::scoped_lock<std::mutex> lock(pImpl_->mutex_conns);
+  pImpl_->socks[MAIN_SOCK] = conn_t(sockd);
+  pImpl_->cur_sd = MAIN_SOCK;
+}
+
+Socket::~Socket() { close(); }
+
+void Socket::bind(const port_t port) const {
+  uni_bind(pImpl_->socks[MAIN_SOCK].sock, port, pImpl_->ipv, pImpl_->proto);
+}
+
+void Socket::listen(const std::size_t cnt) const {
+  uni_listen(pImpl_->socks[MAIN_SOCK].sock, cnt);
+}
+
+sock_t Socket::accept(void) {
+  addr_t addr;
+  sockd_t conn_fd =
+      uni_accept(pImpl_->socks[MAIN_SOCK].sock, addr, pImpl_->ipv);
+  if (NULL_SOCKD == conn_fd)
+    return NULL_SOCK;
+
+  sock_t sd(++pImpl_->cur_sd);
+  std::unique_lock<std::mutex> slock(pImpl_->mutex_socks);
+  pImpl_->socks[sd] = conn_t(conn_fd, addr);
+  slock.unlock();
+  std::scoped_lock<std::mutex> clock(pImpl_->mutex_conns);
+  pImpl_->conns.emplace_back(sd);
+  return sd;
+}
+
+bool Socket::connect(const addr_t &host) {
+  conn_t &ms = pImpl_->socks[MAIN_SOCK];
+  if (uni_connect(ms.sock, host, ms.addr, pImpl_->ipv, pImpl_->proto)) {
+    return true;
+  } else {
+    try {
+      uni_close(ms.sock);
+      ms.sock = uni_socket(pImpl_->ipv, pImpl_->proto);
+    } catch (std::system_error &rec_e) {
+      close();
+      throw std::system_error(rec_e.code(),
+                              string(rec_e.what()) + connect_errmsg);
     }
-}
-void Socket::closeSocket()
-{
-    for(auto i = socks.begin(); i != socks.end(); ++i)
-    {
-        if(is_open(i->second.fd))
-            uni_close(i->second.fd);
-    }
-    socks.clear();
-    conns.clear();
-    cur_sd = MAIN_SOCKD;
-    destroyrwlock(&rwlock);
+  }
+  return false;
 }
 
-Socket::Socket(ipv_t _IPVersion, type_t _ConnectType)
-{
-    type = _ConnectType;
-    ipv = _IPVersion;
-    socks.clear();
-    conns.clear();
-    initrwlock(&rwlock);
-    sockfd_t sock_fd = uni_socket(ipv, type);
-    conn_t ms;
-    if (is_open(sock_fd))
-    {
-        ms.fd = sock_fd;
-        socks[MAIN_SOCKD] = ms;
-        cur_sd = MAIN_SOCKD;
-        // Install signal handler for SIGINT
-        installSigIntHandler();
-        socket_list.push_back(*this);
-    }
-    else
-        closeSocket();
-}
-Socket::~Socket()
-{
-    closeSocket();
+std::size_t Socket::send(const byte *buf, const std::size_t len,
+                         const sock_t sd) const {
+  return uni_send(pImpl_->socks[sd].sock, buf, len);
 }
 
-int Socket::bindTo(port_t port)
-{
-    return uni_bind(socks[MAIN_SOCKD].fd, port, ipv, type);
+std::size_t Socket::sendto(const byte *buf, const std::size_t size,
+                           const addr_t &haddr) const {
+  conn_t &ms = pImpl_->socks[MAIN_SOCK];
+  return uni_sendto(ms.sock, buf, size, haddr, ms.addr, pImpl_->ipv,
+                    pImpl_->proto);
 }
 
-int Socket::listenOn(int cnt)
-{
-    return uni_listen(socks[MAIN_SOCKD].fd, cnt);
+std::size_t Socket::recv(byte *buf, const std::size_t size,
+                         const sock_t sd) const {
+  return uni_recv(pImpl_->socks[sd].sock, buf, size);
 }
 
-sockd_t Socket::acceptFrom(void)
-{
-    conn_t conn;
-    sockfd_t conn_fd = uni_accept(socks[MAIN_SOCKD].fd, conn.addr, ipv);
-
-    if (is_open(conn_fd))
-    {
-        conn.fd = conn_fd;
-        if(-1 == wlock(&rwlock))
-            return SOCKD_ERR;
-        ++cur_sd;
-        socks[cur_sd] = conn;
-        conns.push_back(cur_sd);
-        unrwlock(&rwlock);
-        return cur_sd;
-    }
-    else
-        return SOCKD_ERR;
+std::size_t Socket::recvfrom(byte *buf, const std::size_t size,
+                             const addr_t &haddr) const {
+  conn_t &ms = pImpl_->socks[MAIN_SOCK];
+  return uni_recvfrom(ms.sock, buf, size, haddr, ms.addr, pImpl_->ipv,
+                      pImpl_->proto);
 }
 
-int Socket::connectTo(std::string host, port_t port)
-{
-    conn_t &ms = socks[MAIN_SOCKD];
-    if(-1 == uni_connect(ms.fd, host, port, ms.addr, ipv, type))
-    {
-        if(-1 == wlock(&rwlock))
-            return -1;
-        uni_close(ms.fd);
-        ms.fd = uni_socket(ipv, type);
-        if(!is_open(ms.fd))
-        {
-            unrwlock(&rwlock);
-            closeSocket();
-        }
-        unrwlock(&rwlock);
-        return -1;
-    }
-    return 0;
+addr_t &Socket::addr(const sock_t sd) const { return pImpl_->socks[sd].addr; }
+
+bool Socket::isConnecting(const sock_t sd) const {
+  return (pImpl_->socks.contains(sd)) ? uni_isConnecting(pImpl_->socks[sd].sock)
+                                      : false;
 }
 
-size_t Socket::sendData(const void *buf, size_t size, sockd_t sd)
-{
-    size_t cnt = uni_send(socks[sd].fd, buf, size);
-    if (cnt < size)
-        fprintf(stderr,
-                "Socket: sendData: Only %zd/%zd byte(s) data is sent.\n",
-                cnt,
-                size);
-    return cnt;
+bool Socket::avaliable(const sock_t sd) const {
+  return (pImpl_->socks.contains(sd)) ? (NULL_SOCKD != pImpl_->socks[sd].sock)
+                                      : false;
 }
 
-size_t Socket::sendTo(const void *buf, size_t size, std::string host, port_t port)
-{
-        return 0;
-    conn_t &ms = socks[MAIN_SOCKD];
-    size_t cnt = uni_sendto(ms.fd, buf, size, host, port, ms.addr, ipv, type);
-    if (cnt < size)
-        fprintf(stderr,
-                "Socket: sendTo: only sent %zd/%zd Byte(s)\n",
-                cnt,
-                size);
-    return cnt;
+std::size_t Socket::connCnt(void) const { return pImpl_->conns.size(); }
+
+bool Socket::setub(const sock_t sd) const {
+  return (pImpl_->socks.contains(sd)) ? uni_setub(pImpl_->socks[sd].sock)
+                                      : false;
 }
 
-size_t Socket::recvData(void *buf, size_t size, sockd_t sd)
-{
-    memset(buf, 0, size);
-    return uni_recv(socks[sd].fd, buf, size);
-}
-
-size_t Socket::recvFrom(void *buf, size_t size, std::string host, port_t port)
-{
-    memset(buf, 0, size);
-    conn_t &ms = socks[MAIN_SOCKD];
-    return uni_recvfrom(ms.fd, buf, size, host, port, ms.addr, ipv, type);
-}
-
-addr_t &Socket::addr(sockd_t sd)
-{
-    if(-1 == rlock(&rwlock))
-        return NULL_ADDR;
-    addr_t &a = socks[sd].addr;
-    unrwlock(&rwlock);
-    return a;
-}
-
-bool Socket::isConnecting(sockd_t sd)
-{
-    if(socks.find(sd) == socks.end())
-        return false;
-    else
-        return uni_isConnecting(socks[sd].fd);
-}
-
-bool Socket::avaliable(sockd_t sd)
-{
-    return (FD_NULL != socks[sd].fd);
-}
-
-size_t Socket::connCnt(void)
-{
-    if(-1 == rlock(&rwlock))
-        return 0;
-    size_t cnt = conns.size();
-    unrwlock(&rwlock);
-    return cnt;
-}
-
-int Socket::setub(sockd_t sd)
-{
-    if(socks.find(sd) == socks.end())
-        return -1;
-    return uni_setub(socks[sd].fd);
-}
+const char *Socket::strerr(const int errcode) { return uni_strerr(errcode); }
+} // namespace CppSocket
