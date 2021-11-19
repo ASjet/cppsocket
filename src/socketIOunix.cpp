@@ -1,466 +1,243 @@
 #if defined(__linux__) || defined(__unix__)
 
-#include <cstdio>
-#include <cstring>
-#include <cstdlib>
-#include <string>
-#include <vector>
-#include <sys/socket.h>
-#include <sys/unistd.h>
-#include <sys/types.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <signal.h>
-#include <netinet/tcp.h>
-#include <pthread.h>
-#include <fcntl.h>
 #include "Socket.h"
 #include "uni_socketIO.h"
+#include <arpa/inet.h>
+#include <cassert>
+#include <cstring>
+#include <fcntl.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <string>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/unistd.h>
+#include <system_error>
+
+using namespace CppSocket;
+using std::string;
 ////////////////////////////////////////////////////////////////////////////////
-#define AF(ipv) ((IPv4 == (ipv)) ? AF_INET : AF_INET6)
-int PROTO(type_t type)
-{
-    switch(type)
-    {
-        TCP:
-            return IPPROTO_TCP;
-        UDP:
-            return IPPROTO_UDP;
-        SCTP:
-            return IPPROTO_SCTP;
-        default:
-            return 0;
-    }
+constexpr std::size_t IPADDR_BUFSIZE(32);
+constexpr std::size_t SOCKADDR_BUFSIZE(128);
+const string getaddrinfo_em("getaddrinfo");
+const string inet_ntop_em("inet_ntop");
+const string socket_em("socket");
+const string bind_em("bind");
+const string listen_em("listen");
+const string accept_em("accept");
+////////////////////////////////////////////////////////////////////////////////
+void throw_em(const int code, const string em) {
+  throw std::system_error(code, std::system_category(), em);
 }
-int SOCK_TYPE(type_t type)
-{
-    switch(type)
-    {
-        TCP:
-            return SOCK_STREAM;
-        UDP:
-            return SOCK_DGRAM;
-        SCTP:
-            return SOCK_SEQPACKET;
-        RAW:
-            return SOCK_RAW;
-        default:
-            return 0;
-    }
+int AF(const ip_v ipv) noexcept {
+  return ((ip_v::IPv4 == (ipv)) ? AF_INET : AF_INET6);
+}
+int PROTO(const proto_t proto) noexcept {
+  switch (proto) {
+  case proto_t::TCP:
+    return IPPROTO_TCP;
+  case proto_t::UDP:
+    return IPPROTO_UDP;
+  case proto_t::SCTP:
+    return IPPROTO_SCTP;
+  default:
+    assert(false);
+  }
+}
+int SOCK_TYPE(const proto_t proto) noexcept {
+  switch (proto) {
+  case proto_t::TCP:
+    return SOCK_STREAM;
+  case proto_t::UDP:
+    return SOCK_DGRAM;
+  case proto_t::SCTP:
+    return SOCK_SEQPACKET;
+  case proto_t::RAW:
+    return SOCK_RAW;
+  default:
+    assert(false);
+  }
 }
 //////////////////////////////////////////////////////////////////////////////////
-void sigint_handler(int sig)
-{
-    for (auto s = socket_list.begin(); s != socket_list.end(); ++s)
-        s->closeSocket();
-    exit(sig);
+bool ns(const char *host, const char *port, addrinfo **result, const ip_v ipv,
+        const proto_t proto) {
+  addrinfo hints;
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = AF(ipv);
+  hints.ai_socktype = SOCK_TYPE(proto);
+  hints.ai_protocol = PROTO(proto);
+
+  if (nullptr == host)
+    hints.ai_flags = AI_PASSIVE;
+
+  return (0 == getaddrinfo(host, port, &hints, result));
 }
 
-int ns(const char *host,
-       const char *port,
-       struct addrinfo **result,
-       ipv_t ipv, type_t type)
-{
-    int errcode;
-    struct addrinfo hints;
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF(ipv);
-    hints.ai_socktype = SOCK_TYPE(type);
-    hints.ai_protocol = PROTO(type);
-    if (nullptr == host)
-        hints.ai_flags = AI_PASSIVE;
-    if (0 != (errcode = getaddrinfo(host, port, &hints, result)))
-    {
-        fprintf(stderr,
-                "ns: getaddrinfo(%d): %s: \"%s:%s\"",
-                errcode,
-                gai_strerror(errcode),
-                ((nullptr == host) ? NULL_ADDRESS : host),
-                ((nullptr == port) ? "*" : port));
-        return -1;
-    }
-    return 0;
-}
+void getPeerAddr(const sockaddr_in *addr, addr_t &peer, const ip_v ipv) {
+  char addr_buf[IPADDR_BUFSIZE];
+  memset(addr_buf, 0, IPADDR_BUFSIZE);
 
-int getPeerAddr(struct sockaddr_in *addr, addr_t &peer, ipv_t ipv)
-{
-    char addr_buf[ADDRESS_BUFFER_SIZE];
-    memset(addr_buf, 0, ADDRESS_BUFFER_SIZE);
-    if (NULL == inet_ntop(AF(ipv), &(addr->sin_addr), addr_buf, ADDRESS_BUFFER_SIZE))
-    {
-        fprintf(stderr,
-                "socketIOunix: getPeerAddr: inet_ntop(%d): %s",
-                errno,
-                strerror(errno));
-        peer.port = NULL_PORT;
-        peer.addr = std::string(NULL_ADDRESS);
-        return -1;
-    }
-    peer.addr = std::string(addr_buf);
-    peer.port = ntohs(addr->sin_port);
-    return 0;
+  if (nullptr ==
+      inet_ntop(AF(ipv), &(addr->sin_addr), addr_buf, IPADDR_BUFSIZE)) {
+
+    peer.ipaddr = NULL_ADDRESS;
+    peer.port = NULL_PORT;
+  }
+
+  peer.ipaddr = std::string(addr_buf);
+  peer.port = ntohs(addr->sin_port);
 }
 ////////////////////////////////////////////////////////////////////////////////
-int initlock(lock_t * lock)
-{
-    int perror = pthread_mutex_init(lock, NULL);
-    if(0 == perror)
-        return 0;
-    fprintf(stderr,
-    "socketIOunix: initlock: pthread_mutex_init(%d):%s\n",
-    perror,
-    strerror(perror));
-    return -1;
-}
-int lock(lock_t *lock)
-{
-    int perror = pthread_mutex_lock(lock);
-    if(0 == perror)
-        return 0;
-    fprintf(stderr,
-    "socketIOunix: lock: pthread_mutex_lock(%d):%s\n",
-    perror,
-    strerror(perror));
-    return -1;
-}
-int unlock(lock_t *lock)
-{
-    int perror = pthread_mutex_unlock(lock);
-    if(0 == perror)
-        return 0;
-    fprintf(stderr,
-    "socketIOunix: unlock: pthread_mutex_unlock(%d):%s\n",
-    perror,
-    strerror(perror));
-    return -1;
-}
-int destroylock(lock_t * lock)
-{
-    int perror = pthread_mutex_destroy(lock);
-    if(0 == perror)
-        return 0;
-    fprintf(stderr,
-    "socketIOunix: destroylock: pthread_mutex_destroy(%d):%s\n",
-    perror,
-    strerror(perror));
-    return -1;
-}
-int initrwlock(rwlock_t * rwlock)
-{
-    int perror = pthread_rwlock_init(rwlock, NULL);
-    if(0 == perror)
-        return 0;
-    fprintf(stderr,
-    "socketIOunix: initrwlock: pthread_rwlock_init(%d):%s\n",
-    perror,
-    strerror(perror));
-    return -1;
-}
-int rlock(rwlock_t *rwlock)
-{
-    int perror = pthread_rwlock_rdlock(rwlock);
-    if(0 == perror)
-        return 0;
-    fprintf(stderr,
-    "socketIOunix: rlock: pthread_rwlock_rdlock(%d):%s\n",
-    perror,
-    strerror(perror));
-    return -1;
-}
-int wlock(rwlock_t *rwlock)
-{
-    int perror = pthread_rwlock_wrlock(rwlock);
-    if(0 == perror)
-        return 0;
-    fprintf(stderr,
-    "socketIOunix: wlock: pthread_rwlock_wrlock(%d):%s\n",
-    perror,
-    strerror(perror));
-    return -1;
-}
-int unrwlock(rwlock_t *rwlock)
-{
-    int perror = pthread_rwlock_unlock(rwlock);
-    if(0 == perror)
-        return 0;
-    fprintf(stderr,
-    "socketIOunix: unrwlock: pthread_rwlock_unlock(%d):%s\n",
-    perror,
-    strerror(perror));
-    return -1;
-}
-int destroyrwlock(rwlock_t *rwlock)
-{
-    int perror = pthread_rwlock_destroy(rwlock);
-    if(0 == perror)
-        return 0;
-    fprintf(stderr,
-    "socketIOunix: destroyrwlock: pthread_rwlock_destroy(%d):%s\n",
-    perror,
-    strerror(perror));
-    return -1;
-}
-void installSigIntHandler(void)
-{
-    signal(SIGINT, sigint_handler);
-}
-////////////////////////////////////////////////////////////////////////////////
-sockfd_t uni_socket(ipv_t ipv, type_t type)
-{
-    int reuse = 1;
-    sockfd_t fd;
-    if (0 > (fd = socket(AF(ipv), SOCK_TYPE(type), PROTO(type))))
-    {
-        fprintf(stderr,
-                "socketIOunix: uni_socket: socket(%d): %s\n",
-                errno,
-                strerror(errno));
-        return FD_NULL;
-    }
-    if(0 > setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)))
-    {
-        close(fd);
-        fprintf(stderr,
-                "socketIOunix: uni_socket: setsockopt(%d): %s\n",
-                errno,
-                strerror(errno));
-        return FD_NULL;
-    }
-    return fd;
+sockd_t uni_socket(const ip_v ipv, const proto_t proto) {
+  int reuse = 1;
+  sockd_t fd;
+
+  if (0 > (fd = socket(AF(ipv), SOCK_TYPE(proto), PROTO(proto))))
+    throw_em(errno, socket_em);
+
+  setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+  return fd;
 }
 
-bool is_open(sockfd_t fd)
-{
-    return (0 < fd);
+void uni_close(const sockd_t fd) {
+  if (NULL_SOCKD != fd)
+    close(fd);
 }
 
-void uni_close(sockfd_t fd)
-{
-    if (is_open(fd))
-        close(fd);
+void uni_bind(const sockd_t sock_fd, const port_t port, const ip_v ipv,
+              const proto_t proto) {
+  addrinfo *result = nullptr;
+  ns(nullptr, std::to_string(port).c_str(), &result, ipv, proto);
+  int ret = bind(sock_fd, result->ai_addr, result->ai_addrlen);
+  freeaddrinfo(result);
+
+  if (-1 == ret)
+    throw_em(errno, bind_em);
 }
 
-int uni_bind(sockfd_t sock_fd, port_t port, ipv_t ipv, type_t type)
-{
-    int errcode;
-    struct addrinfo *result = nullptr;
-    if (-1 == ns(nullptr, std::to_string(port).c_str(), &result, ipv, type))
-    {
-        fprintf(stderr, " in socketIOwin: uni_bind\n");
-        return -1;
-    }
+void uni_listen(const sockd_t sock_fd, const std::size_t cnt) {
+  if (-1 == listen(sock_fd, cnt))
+    throw_em(errno, listen_em);
+}
 
-    if (-1 == bind(sock_fd, result->ai_addr, result->ai_addrlen))
-    {
-        fprintf(stderr,
-                "socketIOunix: uni_bind: bind(%d): %s\n",
-                errno,
-                strerror(errno));
-        freeaddrinfo(result);
-        return -1;
+sockd_t uni_accept(const sockd_t sock_fd, addr_t &peer, const ip_v ipv) {
+  socklen_t len = SOCKADDR_BUFSIZE;
+  byte addr[len];
+  memset(addr, 0, len);
+  sockd_t conn_fd = accept(sock_fd, reinterpret_cast<sockaddr *>(addr), &len);
+
+  if (-1 == conn_fd) {
+    switch (errno) {
+    case EAGAIN: // Return with no block
+    case EINTR:  // Return from interrupt
+    case EPERM:  // Return due to firewall
+      break;
+    default:
+      throw_em(errno, accept_em);
     }
+  }
+
+  if (SOCKADDR_BUFSIZE == len)
+    addr[SOCKADDR_BUFSIZE - 1] = '\0';
+
+  getPeerAddr(reinterpret_cast<sockaddr_in *>(addr), peer, ipv);
+  return conn_fd;
+}
+
+bool uni_connect(const sockd_t sock_fd, const addr_t &host, addr_t &peer,
+                 const ip_v ipv, const proto_t proto) {
+  addrinfo *result = nullptr, *p = nullptr;
+  if (ns(host.ipaddr.c_str(), std::to_string(host.port).c_str(), &result, ipv,
+         proto)) {
+    for (p = result; nullptr != p; p = p->ai_next)
+      if (0 == connect(sock_fd, p->ai_addr, p->ai_addrlen))
+        break;
+
     freeaddrinfo(result);
-    return 0;
-}
-
-int uni_listen(sockfd_t sock_fd, int cnt)
-{
-    if (-1 == listen(sock_fd, cnt))
-    {
-        fprintf(stderr,
-                "socketIOunix: uni_listen: listen(%d): %s\n",
-                errno,
-                strerror(errno));
-        return -1;
+    if (nullptr != p) {
+      getPeerAddr(reinterpret_cast<sockaddr_in *>(p->ai_addr), peer, ipv);
+      return true;
     }
-    return 0;
+  }
+  if (nullptr != result)
+    freeaddrinfo(result);
+  return false;
 }
 
-sockfd_t uni_accept(sockfd_t sock_fd, addr_t &peer, ipv_t ipv)
-{
-    sockfd_t conn_fd;
-    byte addr[SOCKADDR_BUFFER_SIZE];
-    memset(addr, 0, SOCKADDR_BUFFER_SIZE);
-    socklen_t len = SOCKADDR_BUFFER_SIZE;
+std::size_t uni_send(const sockd_t sock_fd, const byte *buf,
+                     const std::size_t length) {
+  auto cnt = send(sock_fd, buf, length, 0);
+  return (-1 == cnt) ? 0 : static_cast<std::size_t>(cnt);
+}
 
-    if (-1 == (conn_fd = accept(sock_fd, (struct sockaddr *)addr, &len)))
-    {
-        fprintf(stderr,
-                "socketIOuniafx: uni_accept: accept(%d): %s\n",
-                errno,
-                strerror(errno));
-        return FD_NULL;
+std::size_t uni_sendto(const sockd_t sock_fd, const byte *buf,
+                       const std::size_t length, const addr_t &host,
+                       addr_t &peer, const ip_v ipv, const proto_t proto) {
+  ssize_t cnt;
+  addrinfo *result = nullptr, *p = nullptr;
+  if (ns(host.ipaddr.c_str(), std::to_string(host.port).c_str(), &result, ipv,
+         proto)) {
+    for (p = result; nullptr != p; p = p->ai_next)
+      if (0 <
+          (cnt = sendto(sock_fd, buf, length, 0, p->ai_addr, p->ai_addrlen)))
+        break;
+
+    freeaddrinfo(result);
+    if (nullptr != p) {
+      getPeerAddr(reinterpret_cast<sockaddr_in *>(p->ai_addr), peer, ipv);
+      return static_cast<std::size_t>(cnt);
     }
+  }
+  if (nullptr != result)
+    freeaddrinfo(result);
+  return 0;
+}
 
-    if (SOCKADDR_BUFFER_SIZE == len)
-    {
-        fprintf(stderr,
-                "socketIOunix: uni_accept: buffer is too small to held entile sockaddr(byte[%d])\n",
-                SOCKADDR_BUFFER_SIZE);
-        addr[SOCKADDR_BUFFER_SIZE - 1] = '\0';
+std::size_t uni_recv(const sockd_t sock_fd, byte *buf, const std::size_t size) {
+  auto cnt = recv(sock_fd, buf, size, 0);
+  return (-1 == cnt) ? 0 : static_cast<std::size_t>(cnt);
+}
+
+const std::size_t uni_recvfrom(const sockd_t sock_fd, byte *buf,
+                               const std::size_t size, const addr_t &host,
+                               addr_t &peer, ip_v ipv, const proto_t proto) {
+  ssize_t cnt;
+  addrinfo *result = nullptr, *p = nullptr;
+  if (0 == ns(host.ipaddr.c_str(), std::to_string(host.port).c_str(), &result,
+              ipv, proto)) {
+    for (p = result; nullptr != p; p = p->ai_next)
+      if (0 <
+          (cnt = recvfrom(sock_fd, buf, size, 0, p->ai_addr, &p->ai_addrlen)))
+        break;
+
+    freeaddrinfo(result);
+    if (nullptr != p) {
+      getPeerAddr(reinterpret_cast<sockaddr_in *>(p->ai_addr), peer, ipv);
+      return static_cast<std::size_t>(cnt);
     }
-    if (-1 == getPeerAddr((struct sockaddr_in *)addr, peer, ipv))
-        fprintf(stderr, " in socketIOunix: uni_accept\n");
-    return conn_fd;
+  }
+  if (nullptr != result)
+    freeaddrinfo(result);
+  return 0;
 }
 
-int uni_connect(sockfd_t sock_fd,
-                std::string host,
-                port_t port,
-                addr_t &peer,
-                ipv_t ipv,
-                type_t type)
-{
-    struct addrinfo *result = nullptr, *p = nullptr;
-    if (0 == ns(host.c_str(), std::to_string(port).c_str(), &result, ipv, type))
-    {
-        for (p = result; nullptr != p; p = p->ai_next)
-        {
-            if (-1 == connect(sock_fd, p->ai_addr, p->ai_addrlen))
-                continue;
-            else
-            {
-                if (-1 == getPeerAddr((struct sockaddr_in *)p->ai_addr, peer, ipv))
-                    fprintf(stderr, " in socketIOunix: uni_connect\n");
-                freeaddrinfo(result);
-                return 0;
-            }
-        }
-        freeaddrinfo(result);
-        fprintf(stderr,
-                "socketIOunix: uni_connect: connect: unable to connect to %s:%hu\n",
-                host.c_str(),
-                port);
-    }
-    else
-        fprintf(stderr, " in socketIOunix: uni_connect\n");
-    peer.addr = NULL_ADDRESS;
-    peer.port = NULL_PORT;
-    return -1;
+bool uni_isConnecting(const sockd_t sock_fd) {
+  tcp_info info;
+  auto len = sizeof(info);
+  memset(&info, 0, len);
+  getsockopt(sock_fd, IPPROTO_TCP, TCP_INFO, &info,
+             reinterpret_cast<socklen_t *>(&len));
+  return (info.tcpi_state == TCP_ESTABLISHED);
 }
 
-size_t uni_send(sockfd_t sock_fd, const void *buf, size_t length)
-{
-    ssize_t cnt = send(sock_fd, buf, length, 0);
-    if (-1 == cnt)
-    {
-        fprintf(stderr,
-                "socketIOunix: uni_send: send(%d): %s\n",
-                errno,
-                strerror(errno));
-        return 0;
-    }
-    return cnt;
+bool uni_setub(const sockd_t sock_fd) {
+  return (-1 ==
+          fcntl(sock_fd, F_SETFL, fcntl(sock_fd, F_GETFL, 0) | O_NONBLOCK))
+             ? false
+             : true;
 }
 
-size_t uni_sendto(sockfd_t sock_fd,
-                   const void *buf,
-                   size_t length,
-                   std::string host,
-                   port_t port,
-                   addr_t &peer,
-                   ipv_t ipv,
-                   type_t type)
-{
-    ssize_t cnt;
-    struct addrinfo *result = nullptr, *p = nullptr;
-    if (0 == ns(host.c_str(), std::to_string(port).c_str(), &result, ipv, type))
-    {
-        for (p = result; nullptr != p; p = p->ai_next)
-        {
-            if (-1 == (cnt = sendto(sock_fd, (const char *)buf, length, 0, p->ai_addr, p->ai_addrlen)))
-                continue;
-            else
-            {
-                if (-1 == getPeerAddr((struct sockaddr_in *)p->ai_addr, peer, ipv))
-                    fprintf(stderr, " in socketIOunix: uni_sendto\n");
-                freeaddrinfo(result);
-                return cnt;
-            }
-        }
-        freeaddrinfo(result);
-        fprintf(stderr,
-                "socketIOunix: uni_sendto: send(%d): unable to send data to %s:%hu\n",
-                cnt,
-                host.c_str(),
-                port);
-    }
-    else
-        fprintf(stderr, " in socketIOunix: uni_sendto\n");
-    peer.addr = NULL_ADDRESS;
-    peer.port = NULL_PORT;
-    return 0;
-}
-
-size_t uni_recv(sockfd_t sock_fd, void *buf, size_t size)
-{
-    ssize_t cnt;
-    if (-1 == (cnt = recv(sock_fd, (char *)buf, size, 0)))
-    {
-        if(EWOULDBLOCK == errno)
-            return 0;
-        fprintf(stderr,
-                "socketIOunix: uni_recv: recv(%d): unable to receive data\n",
-                cnt);
-        return 0;
-    }
-    return cnt;
-}
-
-size_t uni_recvfrom(sockfd_t sock_fd,
-                     void *buf,
-                     size_t size,
-                     std::string host,
-                     port_t port,
-                     addr_t &peer,
-                     ipv_t ipv,
-                     type_t type)
-{
-    ssize_t cnt;
-    struct addrinfo *result = nullptr, *p = nullptr;
-    if (0 == ns(host.c_str(), std::to_string(port).c_str(), &result, ipv, type))
-    {
-        for (p = result; nullptr != p; p = p->ai_next)
-        {
-            if (-1 == (cnt = recvfrom(sock_fd, buf, size, 0, p->ai_addr, &p->ai_addrlen)))
-                continue;
-            else
-            {
-                if (-1 == getPeerAddr((struct sockaddr_in *)p->ai_addr, peer, ipv))
-                    fprintf(stderr, " in socketIOunix: uni_recvfrom\n");
-                freeaddrinfo(result);
-                return cnt;
-            }
-        }
-        freeaddrinfo(result);
-        if(EWOULDBLOCK != errno)
-            fprintf(stderr,
-                    "socketIOunix: uni_recvfrom: recvfrom(%d): unable to receive data from %s:%hu\n",
-                    cnt,
-                    host.c_str(),
-                    port);
-    }
-    else
-        fprintf(stderr, " in socketIOunix: uni_recvfrom\n");
-    peer.addr = NULL_ADDRESS;
-    peer.port = NULL_PORT;
-    return 0;
-}
-
-bool uni_isConnecting(sockfd_t sock_fd)
-{
-    struct tcp_info info;
-    memset(&info, 0, sizeof(info));
-    size_t len = sizeof(info);
-    getsockopt(sock_fd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len);
-    return (info.tcpi_state == TCP_ESTABLISHED);
-}
-
-int uni_setub(sockfd_t sock_fd)
-{
-    fcntl(sock_fd, F_SETFL, fcntl(sock_fd, F_GETFL, 0) | O_NONBLOCK);
-    return 0;
-}
+const char *uni_strerr(const int ec) { return strerror(ec); }
 
 #endif
