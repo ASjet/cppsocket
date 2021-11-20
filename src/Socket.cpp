@@ -39,7 +39,9 @@ std::size_t uni_recvfrom(const sockd_t _Socket, byte *_DataBuffer,
                          const std::size_t _BufferSize, const addr_t &_HostAddr,
                          addr_t &_OppoAddr, const ip_v _IPVersion,
                          const proto_t _Protocol);
-bool uni_isConnecting(const sockd_t _Socket);
+bool uni_isConnecting(const sockd_t sd,
+                      std::unordered_map<sockd_t, std::unique_ptr<tcb_t>> &tcbs,
+                      std::mutex &mutex);
 bool uni_setub(const sockd_t _Socket);
 const char *uni_strerr(const int _ErrorCode);
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,17 +74,20 @@ struct Socket::Impl {
   proto_t proto;
   std::atomic<sock_t> cur_sd;
   std::mutex mutex_socks, mutex_conns;
-  std::unordered_map<sock_t, conn_t> socks;
   std::list<sock_t> conns;
+  std::unordered_map<sock_t, conn_t> socks;
+  std::unordered_map<sockd_t, std::unique_ptr<tcb_t>> tcbs;
 };
 
 const addr_t NULL_ADDR;
 /////////////////////////////////////////////////////////////////////////////////
 void Socket::disconnect(const sock_t sd) {
   if (pImpl_->socks.contains(sd)) {
-    uni_close(pImpl_->socks[sd].sock);
+    sockd_t sock(pImpl_->socks[sd].sock);
+    uni_close(sock);
     std::unique_lock<std::mutex> lock(pImpl_->mutex_socks);
     pImpl_->socks.erase(sd);
+    pImpl_->tcbs.erase(sock);
     lock.unlock();
 
     for (auto i = pImpl_->conns.cbegin(); i != pImpl_->conns.cend(); ++i)
@@ -179,8 +184,10 @@ std::size_t Socket::recvfrom(byte *buf, const std::size_t size,
 addr_t &Socket::addr(const sock_t sd) const { return pImpl_->socks[sd].addr; }
 
 bool Socket::isConnecting(const sock_t sd) const {
-  return (pImpl_->socks.contains(sd)) ? uni_isConnecting(pImpl_->socks[sd].sock)
-                                      : false;
+  return (pImpl_->socks.contains(sd))
+             ? uni_isConnecting(pImpl_->socks[sd].sock, pImpl_->tcbs,
+                                pImpl_->mutex_socks)
+             : false;
 }
 
 bool Socket::avaliable(const sock_t sd) const {

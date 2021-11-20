@@ -7,6 +7,7 @@
 #include <winsock2.h>
 
 using sockd_t = SOCKET;
+using tcb_t = void;
 const sockd_t NULL_SOCKD(INVALID_SOCKET);
 
 #ifdef _WIN64
@@ -30,7 +31,9 @@ const sockd_t NULL_SOCKD(INVALID_SOCKET);
 
 #elif defined(__linux__) || defined(__unix__)
 
+#include <netinet/tcp.h>
 using sockd_t = int;
+using tcb_t = tcp_info;
 constexpr sockd_t NULL_SOCKD(-1);
 
 #else

@@ -6,14 +6,17 @@
 #include <cassert>
 #include <cstring>
 #include <fcntl.h>
+#include <memory>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <string>
+#include <mutex>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/unistd.h>
 #include <system_error>
+#include <unordered_map>
 
 using namespace CppSocket;
 using std::string;
@@ -60,8 +63,8 @@ static int SOCK_TYPE(const proto_t proto) noexcept {
   }
 }
 //////////////////////////////////////////////////////////////////////////////////
-static bool ns(const char *host, const char *port, addrinfo **result, const ip_v ipv,
-        const proto_t proto) {
+static bool ns(const char *host, const char *port, addrinfo **result,
+               const ip_v ipv, const proto_t proto) {
   addrinfo hints;
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF(ipv);
@@ -217,13 +220,19 @@ const std::size_t uni_recvfrom(const sockd_t sd, byte *buf,
   return 0;
 }
 
-bool uni_isConnecting(const sockd_t sd) {
-  tcp_info info;
-  auto len = sizeof(info);
-  memset(&info, 0, len);
-  getsockopt(sd, IPPROTO_TCP, TCP_INFO, &info,
-             reinterpret_cast<socklen_t *>(&len));
-  return (info.tcpi_state == TCP_ESTABLISHED);
+bool uni_isConnecting(
+    const sockd_t sd,
+    std::unordered_map<sockd_t, std::unique_ptr<tcb_t>> &tcbs,
+    std::mutex &mutex) {
+  tcb_t *tcbp(nullptr);
+  if (!tcbs.contains(sd)) {
+    std::unique_lock<std::mutex> lock(mutex);
+    tcbs[sd] = std::make_unique<tcb_t>();
+  }
+  tcbp = tcbs[sd].get();
+  socklen_t len(sizeof(tcb_t));
+  getsockopt(sd, IPPROTO_TCP, TCP_INFO, tcbp, &len);
+  return (tcbp->tcpi_state == TCP_ESTABLISHED);
 }
 
 bool uni_setub(const sockd_t sd) {
