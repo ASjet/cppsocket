@@ -16,7 +16,7 @@
 #pragma comment(lib, "Mswsock.lib")
 #pragma comment(lib, "AdvApi32.lib")
 
-using namespace cppsocket;
+namespace cppsocket {
 using std::string;
 ////////////////////////////////////////////////////////////////////////////////
 constexpr std::size_t IPADDR_BUFSIZE(32);
@@ -238,4 +238,5 @@ const char *uni_strerr(const int ec) {
          "windows-sockets-error-codes-2";
 }
 
+}
 #endif

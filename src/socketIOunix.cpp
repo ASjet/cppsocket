@@ -18,7 +18,7 @@
 #include <system_error>
 #include <unordered_map>
 
-using namespace cppsocket;
+namespace cppsocket{
 using std::string;
 ////////////////////////////////////////////////////////////////////////////////
 constexpr std::size_t IPADDR_BUFSIZE(32);
@@ -245,13 +245,13 @@ uni_recv(const sockd_t sd, byte* buf, const std::size_t size)
   return (-1 == cnt) ? 0 : static_cast<std::size_t>(cnt);
 }
 
-const std::size_t
+std::size_t
 uni_recvfrom(const sockd_t sd,
              byte* buf,
              const std::size_t size,
              const addr_t& host,
              addr_t& peer,
-             ip_v ipv,
+             const ip_v ipv,
              const proto_t proto)
 {
   ssize_t cnt;
@@ -298,4 +298,5 @@ uni_strerr(const int ec)
   return strerror(ec);
 }
 
+}
 #endif
