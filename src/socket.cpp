@@ -1,6 +1,7 @@
 #include "uni_socketIO.h"
 #include <cstring>
 #include <utility>
+#include <memory>
 #include <system_error>
 
 using std::string;
@@ -20,7 +21,7 @@ struct Socket_impl {
   addr_t oaddr;
 };
 struct Connection_impl {
-  Connection_impl(const Socket_impl* si):
+  Connection_impl(const std::unique_ptr<Socket_impl>& si):
     sockd(si->sockd), ipv(si->ipv), protocol(si->protocol),
     haddr(si->haddr), oaddr(si->oaddr) {}
   sockd_t sockd = NULL_SOCKD;
@@ -32,7 +33,7 @@ struct Connection_impl {
 ////////////////////////////////////////////////////////////////////////////////
 Socket::Socket(const ip_v ipv, const proto_t proto)
 {
-  impl = new Socket_impl(ipv, proto);
+  impl = std::make_unique<Socket_impl>(ipv, proto);
   makeSocket();
 }
 
@@ -49,7 +50,6 @@ void Socket::makeSocket() {
 Socket::~Socket()
 {
   close();
-  delete impl;
 }
 
 void
@@ -117,14 +117,13 @@ const char* strerr(const int errcode)
   return uni_strerr(errcode);
 }
 ////////////////////////////////////////////////////////////////////////////////
-Connection::Connection(const Socket_impl* si) {
-  impl = new Connection_impl(si);
+Connection::Connection(const std::unique_ptr<Socket_impl>& si) {
+  impl = std::make_unique<Connection_impl>(si);
 }
 
 Connection::~Connection()
 {
   close();
-  delete impl;
 }
 
 std::size_t

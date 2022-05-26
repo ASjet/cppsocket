@@ -2,6 +2,7 @@
 #define SOCKET_H
 
 #include <string>
+#include <memory>
 ////////////////////////////////////////////////////////////////////////////////
 namespace cppsocket {
 
@@ -52,13 +53,13 @@ public:
 
 private:
   void makeSocket();
-  Socket_impl* impl;
+  std::unique_ptr<Socket_impl> impl;
 };
 ////////////////////////////////////////////////////////////////////////////////
 class Connection
 {
 public:
-  Connection(const Socket_impl* socket_impl);
+  Connection(const std::unique_ptr<Socket_impl>& socket_impl);
   ~Connection();
   std::size_t send(const void * _Buffer, const std::size_t _Length);
   std::size_t recv(void * _Buffer, const std::size_t _Size);
@@ -68,7 +69,7 @@ public:
   void close(void);
 
 private:
-  Connection_impl* impl;
+  std::unique_ptr<Connection_impl> impl;
 };
 
 } // namespace cppsocket
