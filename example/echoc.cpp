@@ -5,6 +5,7 @@
 #include <string>
 #include <system_error>
 using namespace cppsocket;
+using std::byte;
 ////////////////////////////////////////////////////////////////////////////////
 constexpr std::size_t BUF_SIZE(2048);
 const std::string HOSTNAME("localhost");

@@ -55,5 +55,4 @@ target_include_directories(
     ${PROJECT_SOURCE_DIR}/include
 )
 
-add_compile_options(-Wall -g -O0 -fsanitize=address)
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 20)

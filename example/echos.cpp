@@ -4,6 +4,7 @@
 #include <string>
 #include <system_error>
 using namespace cppsocket;
+using std::byte;
 ////////////////////////////////////////////////////////////////////////////////
 #define BUF_SIZE 2048
 byte buf[BUF_SIZE];
