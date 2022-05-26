@@ -7,21 +7,17 @@ namespace cppsocket {
 
 using byte = uint8_t;
 using port_t = uint16_t;
-using sock_t = int;
+enum class ip_v { IPv4, IPv6 };
+enum class proto_t { TCP, UDP, SCTP, RAW };
+enum class sock_err { CREATE_SOCKET_ERROR };
 
 struct Socket_impl;
 struct Connection_impl;
 class Socket;
 class Connection;
 
-enum class ip_v { IPv4, IPv6 };
-enum class proto_t { TCP, UDP, SCTP, RAW };
-enum class sock_err { CREATE_SOCKET_ERROR };
-
 const std::string NULL_ADDRESS("0.0.0.0");
 constexpr port_t NULL_PORT(0);
-constexpr sock_t MAIN_SOCK(0);
-constexpr sock_t NULL_SOCK(-1);
 
 /*
   @return error message of error code
@@ -68,7 +64,7 @@ public:
   std::size_t recv(byte* _Buffer, const std::size_t _Size);
   const addr_t &getAddr() const;
   bool isConnecting() const;
-  bool avaliable(const sock_t _SockDesc) const;
+  bool avaliable() const;
   void close(void);
 
 private:

@@ -37,7 +37,6 @@ Socket::Socket(const ip_v ipv, const proto_t proto)
 }
 
 void Socket::makeSocket() {
-  close();
   try {
     impl->sockd = uni_socket(impl->ipv, impl->protocol);
   } catch (std::system_error& rec_e) {
@@ -164,7 +163,7 @@ Connection::isConnecting() const
 }
 
 
-bool Connection::avaliable(const sock_t _SockDesc) const {
+bool Connection::avaliable() const {
   return (impl->sockd == NULL_SOCKD);
 }
 
@@ -175,6 +174,5 @@ Connection::close()
     uni_close(impl->sockd);
   impl->sockd = NULL_SOCKD;
 }
-
 
 } // namespace cppsocket

@@ -113,7 +113,7 @@ uni_socket(const ip_v ipv, const proto_t proto)
   int reuse = 1;
   sockd_t sd = socket(AF(ipv), SOCK_TYPE(proto), PROTO(proto));
 
-  if (NULL_SOCK == sd)
+  if (NULL_SOCKD == sd)
     throw_em(errno, socket_em);
 
   setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
@@ -157,7 +157,7 @@ uni_accept(const sockd_t sd, addr_t& peer, const ip_v ipv)
   socklen_t len(SOCKADDR_BUFSIZE);
   sockd_t cd = accept(sd, reinterpret_cast<sockaddr*>(addr), &len);
 
-  if (NULL_SOCK == cd) {
+  if (NULL_SOCKD == cd) {
     switch (errno) {
       case EAGAIN: // Return with no block
       case EINTR:  // Return from interrupt
