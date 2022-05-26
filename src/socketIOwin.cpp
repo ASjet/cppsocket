@@ -1,7 +1,7 @@
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
 
 #define WIN32_LEAN_AND_MEAN
-#include "Socket.h"
+#include "socket.h"
 #include "uni_socketIO.h"
 #include <cassert>
 #include <cstring>
@@ -16,7 +16,7 @@
 #pragma comment(lib, "Mswsock.lib")
 #pragma comment(lib, "AdvApi32.lib")
 
-using namespace CppSocket;
+namespace cppsocket {
 using std::string;
 ////////////////////////////////////////////////////////////////////////////////
 constexpr std::size_t IPADDR_BUFSIZE(32);
@@ -238,4 +238,5 @@ const char *uni_strerr(const int ec) {
          "windows-sockets-error-codes-2";
 }
 
+}
 #endif

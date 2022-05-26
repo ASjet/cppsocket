@@ -7,21 +7,25 @@ include_directories(
 )
 
 if(WIN32)
+    message("Environment: WIN32")
     add_library(
         ${PROJECT_NAME}
-        src/Socket.cpp
         src/socketIOwin.cpp
+        src/socket.cpp
     )
     target_link_libraries( ${PROJECT_NAME} ws2_32 )
 elseif(UNIX)
+    message("Environment: UNIX")
     add_library(
         ${PROJECT_NAME}
-        src/Socket.cpp
         src/socketIOunix.cpp
+        src/socket.cpp
     )
 elseif(APPLE)
+    message("Environment: APPLE")
     message(STATUS "Unsupported platform: Darwin.")
 elseif(ANDROID)
+    message("Environment: ANDROID")
     message(STATUS "Unsupported platform: Andriod.")
 endif(WIN32)
 
@@ -51,5 +55,5 @@ target_include_directories(
     ${PROJECT_SOURCE_DIR}/include
 )
 
-add_compile_options(-Wall -g)
+add_compile_options(-Wall -g -O0 -fsanitize=address)
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 20)
