@@ -279,10 +279,10 @@ uni_recvfrom(const sockd_t sd,
 bool
 uni_isConnecting(const sockd_t sd)
 {
-  tcb_t* tcbp(nullptr);
+  tcb_t tcbp;
   socklen_t len(sizeof(tcb_t));
-  getsockopt(sd, IPPROTO_TCP, TCP_INFO, tcbp, &len);
-  return (tcbp->tcpi_state == TCP_ESTABLISHED);
+  getsockopt(sd, IPPROTO_TCP, TCP_INFO, &tcbp, &len);
+  return (tcbp.tcpi_state == TCP_ESTABLISHED);
 }
 
 bool
