@@ -78,6 +78,7 @@ Socket::accept(void)
   addr_t addr;
   Connection* conn = nullptr;
   sockd_t conn_fd = uni_accept(impl->sockd, addr, impl->ipv);
+  impl->oaddr = addr;
   if(conn_fd != NULL_SOCKD) {
     sockd_t tmp = impl->sockd;
     impl->sockd = conn_fd;
@@ -127,26 +128,26 @@ Connection::~Connection()
 }
 
 std::size_t
-Connection::send(const byte* _Buffer, const std::size_t _Size)
+Connection::send(const void* _Buffer, const std::size_t _Size)
 {
   switch (impl->protocol) {
     case proto_t::TCP:
-      return uni_send(impl->sockd, _Buffer, _Size);
+      return uni_send(impl->sockd, reinterpret_cast<const byte*>(_Buffer), _Size);
     case proto_t::UDP:
-      return uni_sendto(impl->sockd, _Buffer, _Size, impl->haddr, impl->oaddr, impl->ipv, impl->protocol);
+      return uni_sendto(impl->sockd, reinterpret_cast<const byte*>(_Buffer), _Size, impl->haddr, impl->oaddr, impl->ipv, impl->protocol);
     default:
       return 0;
   }
 }
 
 std::size_t
-Connection::recv(byte* _Buffer, const std::size_t _Size)
+Connection::recv(void* _Buffer, const std::size_t _Size)
 {
   switch (impl->protocol) {
     case proto_t::TCP:
-      return uni_recv(impl->sockd, _Buffer, _Size);
+      return uni_recv(impl->sockd, reinterpret_cast<byte*>(_Buffer), _Size);
     case proto_t::UDP:
-      return uni_recvfrom(impl->sockd, _Buffer, _Size, impl->haddr, impl->oaddr, impl->ipv, impl->protocol);
+      return uni_recvfrom(impl->sockd, reinterpret_cast<byte*>(_Buffer), _Size, impl->haddr, impl->oaddr, impl->ipv, impl->protocol);
     default:
       return 0;
   }

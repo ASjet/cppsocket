@@ -60,8 +60,8 @@ class Connection
 public:
   Connection(const Socket_impl* socket_impl);
   ~Connection();
-  std::size_t send(const byte* _Buffer, const std::size_t _Length);
-  std::size_t recv(byte* _Buffer, const std::size_t _Size);
+  std::size_t send(const void * _Buffer, const std::size_t _Length);
+  std::size_t recv(void * _Buffer, const std::size_t _Size);
   const addr_t &getAddr() const;
   bool isConnecting() const;
   bool avaliable() const;

@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
 
     while (conn->isConnecting() && std::getline(std::cin, msg)) {
       auto cnt =
-          conn->send(reinterpret_cast<const byte *>(msg.c_str()), msg.length());
+          conn->send(msg.c_str(), msg.length());
       printf("send %zd byte(s)\n", cnt);
       memset(buf, 0, BUF_SIZE);
       if (0 == (cnt = conn->recv(buf, BUF_SIZE)))
