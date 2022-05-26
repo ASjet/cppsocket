@@ -6,7 +6,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 namespace cppsocket {
 
-using byte = uint8_t;
+using std::byte;
 using port_t = uint16_t;
 enum class ip_v { IPv4, IPv6 };
 enum class proto_t { TCP, UDP, SCTP, RAW };
