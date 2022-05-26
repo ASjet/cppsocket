@@ -9,15 +9,16 @@ include_directories(
 if(WIN32)
     add_library(
         ${PROJECT_NAME}
-        src/Socket.cpp
+        src/socket.cpp
         src/socketIOwin.cpp
     )
     target_link_libraries( ${PROJECT_NAME} ws2_32 )
 elseif(UNIX)
     add_library(
         ${PROJECT_NAME}
-        src/Socket.cpp
+        src/socket.cpp
         src/socketIOunix.cpp
+        src/connection.cpp
     )
 elseif(APPLE)
     message(STATUS "Unsupported platform: Darwin.")

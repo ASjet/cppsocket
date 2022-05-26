@@ -1,9 +1,9 @@
-#include "Socket.h"
+#include "socket.h"
 #include <cstdio>
 #include <cstring>
 #include <string>
 #include <system_error>
-using namespace CppSocket;
+using namespace socket;
 ////////////////////////////////////////////////////////////////////////////////
 #define BUF_SIZE 2048
 byte buf[BUF_SIZE];
@@ -24,31 +24,31 @@ int main(int argc, char **argv) {
     printf("Listening on %hu\n", port);
 
     while (true) {
-      sock_t cs;
-      if (NULL_SOCK == (cs = s.accept()))
+      Connection* conn = s.accept();
+      if(conn == nullptr)
         break;
 
-      peer = s.addr(cs);
+      peer = conn->getAddr();
       printf("Connection with %s:%hu established\n", peer.ipaddr.c_str(),
              peer.port);
 
-      while (s.isConnecting(cs)) {
+      while (conn->isConnecting()) {
         memset(buf, 0, BUF_SIZE);
-        auto cnt = s.recv(buf, BUF_SIZE, cs);
+        auto cnt = conn->recv(buf, BUF_SIZE);
         if (0 == cnt)
           break;
         printf("Receved %zd byte(s) from %s:%hu\n%s\n", cnt,
                peer.ipaddr.c_str(), peer.port, buf);
-        s.send(buf, cnt, cs);
+        conn->send(buf, cnt);
       }
       printf("Connection closed\n");
+      conn->close();
     }
 
     s.close();
   } catch (std::system_error &e) {
     auto errcode = e.code().value();
-    fprintf(stderr, "%s(%d): %s\n", e.what(), errcode,
-            Socket::strerr(errcode));
+    fprintf(stderr, "%s(%d): %s\n", e.what(), errcode, strerr(errcode));
     return -1;
   }
   printf("Echo server shutdown\n");
