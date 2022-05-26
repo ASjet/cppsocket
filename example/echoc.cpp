@@ -4,7 +4,7 @@
 #include <iostream>
 #include <string>
 #include <system_error>
-using namespace socket;
+using namespace cppsocket;
 ////////////////////////////////////////////////////////////////////////////////
 constexpr std::size_t BUF_SIZE(2048);
 const std::string HOSTNAME("localhost");
@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
 
   port_t port = std::stoi(argv[1]);
   addr_t addr(HOSTNAME, port);
-  string msg;
+  std::string msg;
 
   try {
     Socket s(ip_v::IPv4, proto_t::TCP);

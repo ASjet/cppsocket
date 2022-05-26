@@ -18,7 +18,7 @@
 #include <system_error>
 #include <unordered_map>
 
-using namespace socket;
+using namespace cppsocket;
 using std::string;
 ////////////////////////////////////////////////////////////////////////////////
 constexpr std::size_t IPADDR_BUFSIZE(32);

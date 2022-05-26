@@ -3,7 +3,7 @@
 #include <cstring>
 #include <string>
 #include <system_error>
-using namespace socket;
+using namespace cppsocket;
 ////////////////////////////////////////////////////////////////////////////////
 #define BUF_SIZE 2048
 byte buf[BUF_SIZE];

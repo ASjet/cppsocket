@@ -16,7 +16,7 @@
 #pragma comment(lib, "Mswsock.lib")
 #pragma comment(lib, "AdvApi32.lib")
 
-using namespace socket;
+using namespace cppsocket;
 using std::string;
 ////////////////////////////////////////////////////////////////////////////////
 constexpr std::size_t IPADDR_BUFSIZE(32);

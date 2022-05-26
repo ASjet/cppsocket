@@ -1,6 +1,8 @@
 #ifndef UNI_SOCKETIO_H
 #define UNI_SOCKETIO_H
 
+#include "socket.h"
+
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
 #define WIN32_LEAN_AND_MEAN
 
@@ -40,9 +42,7 @@ constexpr sockd_t NULL_SOCKD(-1);
 #error "Unknown compiler"
 #endif
 
-#include "socket.h"
-
-namespace socket {
+namespace cppsocket {
 
 sockd_t uni_socket(const ip_v _IPVersion, const proto_t _Protocol);
 void uni_close(const sockd_t _Socket);
@@ -71,6 +71,5 @@ bool uni_setub(const sockd_t _Socket);
 const char *uni_strerr(const int _ErrorCode);
 
 }
-
 
 #endif
