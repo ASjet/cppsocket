@@ -1,8 +1,8 @@
 #include "uni_socketIO.h"
 #include <cstring>
-#include <utility>
 #include <memory>
 #include <system_error>
+#include <utility>
 
 using std::string;
 ////////////////////////////////////////////////////////////////////////////////
@@ -12,18 +12,27 @@ const string connect_errmsg("\nUnable to recreate socket after\
                             failed to establish connection\n");
 const addr_t NULL_ADDR;
 /////////////////////////////////////////////////////////////////////////////////
-struct Socket_impl {
-  Socket_impl(ip_v _ipv, proto_t proto): ipv(_ipv), protocol(proto) {}
+struct Socket_impl
+{
+  Socket_impl(ip_v _ipv, proto_t proto)
+    : ipv(_ipv)
+    , protocol(proto)
+  {}
   sockd_t sockd = NULL_SOCKD;
   ip_v ipv;
   proto_t protocol;
   addr_t haddr;
   addr_t oaddr;
 };
-struct Connection_impl {
-  Connection_impl(const std::unique_ptr<Socket_impl>& si):
-    sockd(si->sockd), ipv(si->ipv), protocol(si->protocol),
-    haddr(si->haddr), oaddr(si->oaddr) {}
+struct Connection_impl
+{
+  Connection_impl(const std::unique_ptr<Socket_impl>& si)
+    : sockd(si->sockd)
+    , ipv(si->ipv)
+    , protocol(si->protocol)
+    , haddr(si->haddr)
+    , oaddr(si->oaddr)
+  {}
   sockd_t sockd = NULL_SOCKD;
   ip_v ipv;
   proto_t protocol;
@@ -34,10 +43,11 @@ struct Connection_impl {
 Socket::Socket(const ip_v ipv, const proto_t proto)
 {
   impl = std::make_unique<Socket_impl>(ipv, proto);
-  makeSocket();
 }
 
-void Socket::makeSocket() {
+void
+Socket::makeSocket()
+{
   try {
     impl->sockd = uni_socket(impl->ipv, impl->protocol);
   } catch (std::system_error& rec_e) {
@@ -53,12 +63,6 @@ Socket::~Socket()
 }
 
 void
-Socket::bind(const port_t port) const
-{
-  uni_bind(impl->sockd, port, impl->ipv, impl->protocol);
-}
-
-void
 Socket::close()
 {
   if (impl->sockd != NULL_SOCKD)
@@ -67,19 +71,26 @@ Socket::close()
 }
 
 void
-Socket::listen(const std::size_t cnt) const
+Socket::listen(const port_t port, const std::size_t cnt)
 {
+  if (impl->sockd == NULL_SOCKD) {
+    makeSocket();
+  }
+  uni_bind(impl->sockd, port, impl->ipv, impl->protocol);
   uni_listen(impl->sockd, cnt);
 }
 
 Connection*
 Socket::accept(void)
 {
+  if (impl->sockd == NULL_SOCKD) {
+    makeSocket();
+  }
   addr_t addr;
   Connection* conn = nullptr;
   sockd_t conn_fd = uni_accept(impl->sockd, addr, impl->ipv);
   impl->oaddr = addr;
-  if(conn_fd != NULL_SOCKD) {
+  if (conn_fd != NULL_SOCKD) {
     sockd_t tmp = impl->sockd;
     impl->sockd = conn_fd;
     conn = new Connection(impl);
@@ -91,11 +102,15 @@ Socket::accept(void)
 Connection*
 Socket::connect(const addr_t& host)
 {
+  if (impl->sockd == NULL_SOCKD) {
+    makeSocket();
+  }
   impl->haddr = host;
   Connection* conn = nullptr;
-  switch(impl->protocol) {
+  switch (impl->protocol) {
     case proto_t::TCP:
-      if(uni_connect(impl->sockd, impl->haddr, impl->oaddr, impl->ipv, impl->protocol))
+      if (uni_connect(
+            impl->sockd, impl->haddr, impl->oaddr, impl->ipv, impl->protocol))
         conn = new Connection(impl);
       break;
     case proto_t::UDP:
@@ -107,17 +122,22 @@ Socket::connect(const addr_t& host)
 }
 
 bool
-Socket::setub() const
+Socket::setub()
 {
+  if (impl->sockd == NULL_SOCKD) {
+    makeSocket();
+  }
   return uni_setub(impl->sockd);
 }
 
-const char* strerr(const int errcode)
+const char*
+strerr(const int errcode)
 {
   return uni_strerr(errcode);
 }
 ////////////////////////////////////////////////////////////////////////////////
-Connection::Connection(const std::unique_ptr<Socket_impl>& si) {
+Connection::Connection(const std::unique_ptr<Socket_impl>& si)
+{
   impl = std::make_unique<Connection_impl>(si);
 }
 
@@ -131,9 +151,16 @@ Connection::send(const void* _Buffer, const std::size_t _Size)
 {
   switch (impl->protocol) {
     case proto_t::TCP:
-      return uni_send(impl->sockd, reinterpret_cast<const byte*>(_Buffer), _Size);
+      return uni_send(
+        impl->sockd, reinterpret_cast<const byte*>(_Buffer), _Size);
     case proto_t::UDP:
-      return uni_sendto(impl->sockd, reinterpret_cast<const byte*>(_Buffer), _Size, impl->haddr, impl->oaddr, impl->ipv, impl->protocol);
+      return uni_sendto(impl->sockd,
+                        reinterpret_cast<const byte*>(_Buffer),
+                        _Size,
+                        impl->haddr,
+                        impl->oaddr,
+                        impl->ipv,
+                        impl->protocol);
     default:
       return 0;
   }
@@ -146,13 +173,21 @@ Connection::recv(void* _Buffer, const std::size_t _Size)
     case proto_t::TCP:
       return uni_recv(impl->sockd, reinterpret_cast<byte*>(_Buffer), _Size);
     case proto_t::UDP:
-      return uni_recvfrom(impl->sockd, reinterpret_cast<byte*>(_Buffer), _Size, impl->haddr, impl->oaddr, impl->ipv, impl->protocol);
+      return uni_recvfrom(impl->sockd,
+                          reinterpret_cast<byte*>(_Buffer),
+                          _Size,
+                          impl->haddr,
+                          impl->oaddr,
+                          impl->ipv,
+                          impl->protocol);
     default:
       return 0;
   }
 }
 
-const addr_t& Connection::getAddr() const {
+const addr_t&
+Connection::getAddr() const
+{
   return impl->oaddr;
 }
 
@@ -162,8 +197,9 @@ Connection::isConnecting() const
   return uni_isConnecting(impl->sockd);
 }
 
-
-bool Connection::avaliable() const {
+bool
+Connection::avaliable() const
+{
   return (impl->sockd == NULL_SOCKD);
 }
 

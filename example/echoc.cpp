@@ -11,7 +11,9 @@ constexpr std::size_t BUF_SIZE(2048);
 const std::string HOSTNAME("localhost");
 byte buf[BUF_SIZE];
 ////////////////////////////////////////////////////////////////////////////////
-int main(int argc, char **argv) {
+int
+main(int argc, char** argv)
+{
   if (argc != 2) {
     printf("Usage %s <bind_port>", argv[0]);
     return 0;
@@ -25,8 +27,8 @@ int main(int argc, char **argv) {
     Socket s(ip_v::IPv4, proto_t::TCP);
     Connection* conn = s.connect(addr);
     if (conn == nullptr) {
-      fprintf(stderr, "Cannot connect to %s:%hu\n", addr.ipaddr.c_str(),
-              addr.port);
+      fprintf(
+        stderr, "Cannot connect to %s:%hu\n", addr.ipaddr.c_str(), addr.port);
       return 0;
     }
 
@@ -34,8 +36,7 @@ int main(int argc, char **argv) {
     printf("Connected to %s:%hu\n", peer.ipaddr.c_str(), peer.port);
 
     while (conn->isConnecting() && std::getline(std::cin, msg)) {
-      auto cnt =
-          conn->send(msg.c_str(), msg.length());
+      auto cnt = conn->send(msg.c_str(), msg.length());
       printf("send %zd byte(s)\n", cnt);
       memset(buf, 0, BUF_SIZE);
       if (0 == (cnt = conn->recv(buf, BUF_SIZE)))
@@ -47,7 +48,7 @@ int main(int argc, char **argv) {
       printf("Connection closed\n");
 
     conn->close();
-  } catch (std::system_error &e) {
+  } catch (std::system_error& e) {
     auto errcode = e.code().value();
     fprintf(stderr, "%s(%d): %s\n", e.what(), errcode, strerr(errcode));
     return -1;
