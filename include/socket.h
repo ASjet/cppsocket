@@ -78,13 +78,13 @@ public:
 
 private:
   void makeSocket();
-  std::unique_ptr<Socket_impl> impl;
+  std::unique_ptr<Socket_impl, void(*)(Socket_impl*)> impl;
 };
 ////////////////////////////////////////////////////////////////////////////////
 class Connection
 {
 public:
-  Connection(const std::unique_ptr<Socket_impl>& socket_impl);
+  Connection(const std::unique_ptr<Socket_impl, void(*)(Socket_impl*)>& socket_impl);
   ~Connection();
   std::size_t send(const void* _Buffer, const std::size_t _Length);
   std::size_t recv(void* _Buffer, const std::size_t _Size);
@@ -94,7 +94,7 @@ public:
   void close(void);
 
 private:
-  std::unique_ptr<Connection_impl> impl;
+  std::unique_ptr<Connection_impl, void(*)(Connection_impl*)> impl;
 };
 
 } // namespace cppsocket

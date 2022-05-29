@@ -26,7 +26,7 @@ struct Socket_impl
 };
 struct Connection_impl
 {
-  Connection_impl(const std::unique_ptr<Socket_impl>& si)
+  Connection_impl(const std::unique_ptr<Socket_impl, void(*)(Socket_impl*)>& si)
     : sockd(si->sockd)
     , ipv(si->ipv)
     , protocol(si->protocol)
@@ -39,11 +39,23 @@ struct Connection_impl
   addr_t haddr;
   addr_t oaddr;
 };
+
+void socket_deleter(Socket_impl* impl) {
+  if (impl->sockd != NULL_SOCKD)
+    uni_close(impl->sockd);
+  delete impl;
+}
+
+void conn_deleter(Connection_impl* impl) {
+  if (impl->sockd != NULL_SOCKD)
+    uni_close(impl->sockd);
+  delete impl;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 Socket::Socket(const ip_v ipv, const proto_t proto)
-{
-  impl = std::make_unique<Socket_impl>(ipv, proto);
-}
+: impl(new Socket_impl(ipv, proto), &socket_deleter)
+{ }
 
 void
 Socket::makeSocket()
@@ -59,7 +71,7 @@ Socket::makeSocket()
 
 Socket::~Socket()
 {
-  close();
+  impl.release();
 }
 
 void
@@ -136,14 +148,13 @@ strerr(const int errcode)
   return uni_strerr(errcode);
 }
 ////////////////////////////////////////////////////////////////////////////////
-Connection::Connection(const std::unique_ptr<Socket_impl>& si)
-{
-  impl = std::make_unique<Connection_impl>(si);
-}
+Connection::Connection(const std::unique_ptr<Socket_impl, void(*)(Socket_impl*)>& si)
+: impl(new Connection_impl(si), &conn_deleter)
+{ }
 
 Connection::~Connection()
 {
-  close();
+  impl.release();
 }
 
 std::size_t
